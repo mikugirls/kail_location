@@ -36,6 +36,8 @@ import androidx.compose.ui.platform.LocalContext
 import android.content.Intent
 import android.net.Uri
 import com.kail.location.views.common.UpdateDialog
+import com.kail.location.views.common.AppDrawer
+
 
 /**
  * 路线模拟主界面
@@ -64,66 +66,16 @@ fun RouteSimulationScreen(
     var showSettingsDialog by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<RouteInfo?>(null) }
     var renameText by remember { mutableStateOf("") }
-    var showRunModeDialog by remember { mutableStateOf(false) }
     
     val historyRoutes by viewModel.historyRoutes.collectAsState()
     val selectedId by viewModel.selectedRouteId.collectAsState()
     val currentRoute = historyRoutes.firstOrNull { it.id == selectedId } ?: historyRoutes.firstOrNull() ?: RouteInfo("-", "暂无", "暂无", "")
     val updateInfo by viewModel.updateInfo.collectAsState()
     val isSimulating by viewModel.isSimulating.collectAsState()
+    val isPaused by viewModel.isPaused.collectAsState()
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-
-    if (showRunModeDialog) {
-        AlertDialog(
-            onDismissRequest = { showRunModeDialog = false },
-            title = { Text(stringResource(R.string.run_mode_dialog_title)) },
-            text = {
-                Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onRunModeChange("root")
-                                showRunModeDialog = false
-                            }
-                            .padding(16.dp)
-                    ) {
-                        RadioButton(
-                            selected = runMode == "root",
-                            onClick = null
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.run_mode_root))
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onRunModeChange("noroot")
-                                showRunModeDialog = false
-                            }
-                            .padding(16.dp)
-                    ) {
-                        RadioButton(
-                            selected = runMode == "noroot",
-                            onClick = null
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.run_mode_noroot))
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showRunModeDialog = false }) {
-                    Text(stringResource(android.R.string.cancel))
-                }
-            }
-        )
-    }
 
     if (updateInfo != null) {
         UpdateDialog(
@@ -145,82 +97,15 @@ fun RouteSimulationScreen(
         drawerState = drawerState,
         gesturesEnabled = drawerState.isOpen,
         drawerContent = {
-            ModalDrawerSheet {
-                DrawerHeader(appVersion)
-                HorizontalDivider()
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_location_simulation)) },
-                    icon = { Icon(painterResource(R.drawable.ic_position), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_location_simulation) } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_route_simulation)) },
-                    icon = { Icon(painterResource(R.drawable.ic_move), contentDescription = null) },
-                    selected = true,
-                    onClick = { scope.launch { drawerState.close() } }
-                )
-                
-                Text(
-                    text = stringResource(R.string.nav_menu_settings),
-                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-                    style = MaterialTheme.typography.labelSmall
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_settings)) },
-                    icon = { Icon(painterResource(R.drawable.ic_menu_settings), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_settings) } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_run_mode)) },
-                    icon = { Icon(painterResource(R.drawable.ic_menu_dev), contentDescription = null) }, // Reusing dev icon
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); showRunModeDialog = true } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_dev)) },
-                    icon = { Icon(painterResource(R.drawable.ic_menu_dev), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_dev) } }
-                )
-
-                Text(
-                    text = stringResource(R.string.nav_menu_more),
-                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-                    style = MaterialTheme.typography.labelSmall
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_upgrade)) },
-                    icon = { Icon(painterResource(R.drawable.ic_menu_upgrade), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); viewModel.checkUpdate(context) } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_feedback)) },
-                    icon = { Icon(painterResource(R.drawable.ic_menu_feedback), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_feedback) } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_contact)) },
-                    icon = { Icon(painterResource(R.drawable.ic_contact), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_contact) } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_sponsor)) },
-                    icon = { Icon(painterResource(R.drawable.ic_user), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_sponsor) } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_github)) },
-                    icon = { Icon(painterResource(R.drawable.ic_menu_dev), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_source_code) } }
-                )
-            }
+            AppDrawer(
+                drawerState = drawerState,
+                currentScreen = "RouteSimulation",
+                onNavigate = onNavigate,
+                appVersion = appVersion,
+                runMode = runMode,
+                onRunModeChange = onRunModeChange,
+                scope = scope
+            )
         }
     ) {
         Scaffold(
@@ -267,7 +152,9 @@ fun RouteSimulationScreen(
                             onLoopToggle = { viewModel.updateLoop(it) },
                             onStartSimulation = onStartSimulation,
                             isSimulating = isSimulating,
-                            onStopSimulation = onStopSimulation
+                            onStopSimulation = onStopSimulation,
+                            isPaused = isPaused,
+                            onPauseResume = { if (isPaused) viewModel.resumeSimulation() else viewModel.pauseSimulation() }
                         )
                         
                         // FAB overlapping the card
@@ -376,7 +263,9 @@ fun RouteCard(
     onLoopToggle: ((Boolean) -> Unit)? = null,
     onStartSimulation: ((SimulationSettings) -> Unit)? = null,
     isSimulating: Boolean = false,
-    onStopSimulation: (() -> Unit)? = null
+    onStopSimulation: (() -> Unit)? = null,
+    isPaused: Boolean = false,
+    onPauseResume: (() -> Unit)? = null
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -455,15 +344,28 @@ fun RouteCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Button(
-                        onClick = { if (isSimulating) onStopSimulation?.invoke() else onStartSimulation?.invoke(settings!!) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        ),
-                        shape = RoundedCornerShape(20.dp),
-                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp)
-                    ) {
-                        Text(if (isSimulating) "停止模拟" else "启动模拟", fontSize = 14.sp)
+                    if (!isSimulating) {
+                        Button(
+                            onClick = { onStartSimulation?.invoke(settings!!) },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            shape = RoundedCornerShape(20.dp),
+                            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp)
+                        ) { Text("启动模拟", fontSize = 14.sp) }
+                    } else {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Button(
+                                onClick = { onPauseResume?.invoke() },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                shape = RoundedCornerShape(20.dp),
+                                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp)
+                            ) { Text(if (isPaused) "继续模拟" else "暂停模拟", fontSize = 14.sp) }
+                            Button(
+                                onClick = { onStopSimulation?.invoke() },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                                shape = RoundedCornerShape(20.dp),
+                                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp)
+                            ) { Text("结束模拟", fontSize = 14.sp) }
+                        }
                     }
 
                     Row(verticalAlignment = Alignment.CenterVertically) {

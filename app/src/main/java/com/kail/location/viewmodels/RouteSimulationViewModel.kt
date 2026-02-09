@@ -52,6 +52,8 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
 
     private val _isSimulating = MutableStateFlow(false)
     val isSimulating: StateFlow<Boolean> = _isSimulating.asStateFlow()
+    private val _isPaused = MutableStateFlow(false)
+    val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
     private val _selectedRouteId = MutableStateFlow<String?>(null)
     val selectedRouteId: StateFlow<String?> = _selectedRouteId.asStateFlow()
 
@@ -195,6 +197,7 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
         intent.putExtra(ServiceGo.EXTRA_RUN_MODE, runMode.value)
         ContextCompat.startForegroundService(app, intent)
         _isSimulating.value = true
+        _isPaused.value = false
         return true
     }
 
@@ -202,6 +205,23 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
         val app = getApplication<Application>()
         app.stopService(Intent(app, ServiceGo::class.java))
         _isSimulating.value = false
+        _isPaused.value = false
+    }
+
+    fun pauseSimulation() {
+        val app = getApplication<Application>()
+        val intent = Intent(app, ServiceGo::class.java)
+        intent.putExtra(ServiceGo.EXTRA_CONTROL_ACTION, ServiceGo.CONTROL_PAUSE)
+        app.startService(intent)
+        _isPaused.value = true
+    }
+
+    fun resumeSimulation() {
+        val app = getApplication<Application>()
+        val intent = Intent(app, ServiceGo::class.java)
+        intent.putExtra(ServiceGo.EXTRA_CONTROL_ACTION, ServiceGo.CONTROL_RESUME)
+        app.startService(intent)
+        _isPaused.value = false
     }
     fun setRunMode(mode: String) {
         _runMode.value = mode
@@ -399,7 +419,6 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
             }
         }
     }
-
     private fun enrichNamesForRoute(obj: JSONObject) {
         try {
             val points = obj.optJSONArray("points") ?: return

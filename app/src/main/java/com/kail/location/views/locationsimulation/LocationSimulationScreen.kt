@@ -38,6 +38,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
 
+import com.kail.location.views.common.AppDrawer
+
 /**
  * 位置模拟主界面组合项。
  *
@@ -76,7 +78,7 @@ fun LocationSimulationScreen(
     val context = LocalContext.current
     var renameTarget by remember { mutableStateOf<HistoryRecord?>(null) }
     var renameText by remember { mutableStateOf("") }
-    var showRunModeDialog by remember { mutableStateOf(false) }
+
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -92,161 +94,21 @@ fun LocationSimulationScreen(
         // Let's assume the ViewModel handles data loading, or the Activity calls it.
     }
 
-    if (showRunModeDialog) {
-        AlertDialog(
-            onDismissRequest = { showRunModeDialog = false },
-            title = { Text(stringResource(R.string.run_mode_dialog_title)) },
-            text = {
-                Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onRunModeChange("root")
-                                showRunModeDialog = false
-                            }
-                            .padding(16.dp)
-                    ) {
-                        RadioButton(
-                            selected = runMode == "root",
-                            onClick = null
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.run_mode_root))
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onRunModeChange("noroot")
-                                showRunModeDialog = false
-                            }
-                            .padding(16.dp)
-                    ) {
-                        RadioButton(
-                            selected = runMode == "noroot",
-                            onClick = null
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.run_mode_noroot))
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showRunModeDialog = false }) {
-                    Text(stringResource(android.R.string.cancel))
-                }
-            }
-        )
-    }
+
 
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = drawerState.isOpen,
         drawerContent = {
-            ModalDrawerSheet {
-                DrawerHeader(appVersion)
-                HorizontalDivider()
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_location_simulation)) },
-                    icon = { Icon(painterResource(R.drawable.ic_position), contentDescription = null) },
-                    selected = true,
-                    onClick = { scope.launch { drawerState.close() } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_route_simulation)) },
-                    icon = { Icon(painterResource(R.drawable.ic_move), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_route_simulation) } }
-                )
-                
-                Text(
-                    text = stringResource(R.string.nav_menu_settings),
-                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-                    style = MaterialTheme.typography.labelSmall
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_settings)) },
-                    icon = { Icon(painterResource(R.drawable.ic_menu_settings), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_settings) } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_run_mode)) },
-                    icon = { Icon(painterResource(R.drawable.ic_menu_dev), contentDescription = null) }, // Reusing dev icon
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); showRunModeDialog = true } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_dev)) },
-                    icon = { Icon(painterResource(R.drawable.ic_menu_dev), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_dev) } }
-                )
-
-                Text(
-                    text = stringResource(R.string.nav_menu_more),
-                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-                    style = MaterialTheme.typography.labelSmall
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_upgrade)) },
-                    icon = {
-                        Icon(
-                            painterResource(R.drawable.ic_menu_upgrade),
-                            contentDescription = null
-                        )
-                    },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onCheckUpdate() } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_feedback)) },
-                    icon = {
-                        Icon(
-                            painterResource(R.drawable.ic_menu_feedback),
-                            contentDescription = null
-                        )
-                    },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_feedback) } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_contact)) },
-                    icon = {
-                        Icon(
-                            painterResource(R.drawable.ic_contact),
-                            contentDescription = null
-                        )
-                    },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_contact) } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_sponsor)) },
-                    icon = {
-                        Icon(
-                            painterResource(R.drawable.ic_user),
-                            contentDescription = null
-                        )
-                    },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_sponsor) } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_github)) },
-                    icon = {
-                        Icon(
-                            painterResource(R.drawable.ic_menu_dev),
-                            contentDescription = null
-                        )
-                    },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_source_code) } }
-                )
-            }
+            AppDrawer(
+                drawerState = drawerState,
+                currentScreen = "LocationSimulation",
+                onNavigate = onNavigate,
+                appVersion = appVersion,
+                runMode = runMode,
+                onRunModeChange = onRunModeChange,
+                scope = scope
+            )
         }
     ) {
         Scaffold(

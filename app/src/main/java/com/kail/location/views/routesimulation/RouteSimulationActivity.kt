@@ -21,6 +21,8 @@ import com.kail.location.views.theme.locationTheme
 import com.kail.location.viewmodels.RouteSimulationViewModel
 import com.kail.location.views.locationsimulation.LocationSimulationActivity
 import com.kail.location.views.settings.SettingsActivity
+import com.kail.location.views.navigationsimulation.NavigationSimulationActivity
+import android.hardware.SensorEventListener
 import com.baidu.mapapi.map.MyLocationConfiguration
 import com.baidu.mapapi.map.BitmapDescriptorFactory
 import com.kail.location.service.ServiceGo
@@ -32,7 +34,7 @@ import androidx.core.content.ContextCompat
  * - 管理当前设备定位展示与首次定位移动视角
  * - 在不同界面间切换：路线列表与路线规划
  */
-class RouteSimulationActivity : BaseActivity() {
+class RouteSimulationActivity : BaseActivity(), SensorEventListener {
     private val viewModel: RouteSimulationViewModel by viewModels()
     private var mMapView: MapView? = null
     private var mBaiduMap: BaiduMap? = null
@@ -80,6 +82,9 @@ class RouteSimulationActivity : BaseActivity() {
                         R.id.nav_route_simulation -> {
                             // Already here
                         }
+                        R.id.nav_navigation_simulation -> {
+                            startActivity(Intent(this@RouteSimulationActivity, NavigationSimulationActivity::class.java))
+                        }
                         R.id.nav_settings -> {
                             startActivity(Intent(this@RouteSimulationActivity, SettingsActivity::class.java))
                         }
@@ -112,6 +117,9 @@ class RouteSimulationActivity : BaseActivity() {
                             } catch (e: Exception) {
                                 Toast.makeText(this@RouteSimulationActivity, "无法打开开发者选项", Toast.LENGTH_SHORT).show()
                             }
+                        }
+                        R.id.nav_update -> {
+                            viewModel.checkUpdate(this@RouteSimulationActivity)
                         }
                         else -> {
                             Toast.makeText(this@RouteSimulationActivity, "功能开发中...", Toast.LENGTH_SHORT).show()
@@ -271,4 +279,8 @@ class RouteSimulationActivity : BaseActivity() {
         mLocClient?.locOption = option
         mLocClient?.start()
     }
+
+    override fun onSensorChanged(event: android.hardware.SensorEvent?) {}
+
+    override fun onAccuracyChanged(sensor: android.hardware.Sensor?, accuracy: Int) {}
 }

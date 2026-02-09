@@ -86,6 +86,11 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
         } catch (_: Exception) {}
     }
 
+    fun setRunMode(mode: String) {
+        _runMode.value = mode
+        sharedPreferences.edit().putString("setting_run_mode", mode).apply()
+    }
+
     /**
      * 切换模拟状态。
      */
@@ -126,11 +131,6 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
             intent.putExtra(ServiceGo.EXTRA_JOYSTICK_ENABLED, enabled)
             app.startService(intent)
         }
-    }
-
-    fun setRunMode(mode: String) {
-        _runMode.value = mode
-        sharedPreferences.edit().putString("setting_run_mode", mode).apply()
     }
 
     /**

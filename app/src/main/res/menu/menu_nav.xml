@@ -16,6 +16,10 @@
             android:id="@+id/nav_route_simulation"
             android:icon="@drawable/ic_move"
             android:title="@string/nav_menu_route_simulation" />
+        <item
+            android:id="@+id/nav_navigation_simulation"
+            android:icon="@drawable/ic_search"
+            android:title="模拟导航" />
     </group>
     
     <group>

@@ -34,38 +34,11 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import android.widget.ImageView
-import com.kail.location.views.common.DrawerHeader
+import com.kail.location.views.common.AppDrawer
 import com.baidu.mapapi.map.BaiduMap
 
+import androidx.compose.material.icons.filled.Check
 
-/**
- * 位置选择屏幕 Composable
- * 整合了地图视图、抽屉导航、浮动按钮、缩放控件以及 POI 信息卡片。
- *
- * @param mapView 百度地图 View 实例
- * @param isMocking 是否正在模拟位置
- * @param onToggleMock 切换模拟状态的回调
- * @param onZoomIn 放大地图回调
- * @param onZoomOut 缩小地图回调
- * @param onLocate 定位到当前位置回调
- * @param onLocationInputConfirm 输入经纬度确认回调
- * @param onMapTypeChange 切换地图类型回调
- * @param onNavigate 导航菜单点击回调
- * @param appVersion 应用版本号
- * @param selectedPoi 当前选中的 POI 信息
- * @param onPoiClose 关闭 POI 卡片回调
- * @param onPoiSave 保存 POI 回调
- * @param onPoiCopy 复制 POI 信息回调
- * @param onPoiShare 分享 POI 信息回调
- * @param onPoiFly "飞行"（模拟位置）到 POI 回调
- * @param updateInfo 更新信息（若有）
- * @param onUpdateDismiss 关闭更新对话框回调
- * @param onUpdateConfirm 确认更新（下载）回调
- * @param searchResults 搜索结果列表
- * @param onSearch 发起搜索回调
- * @param onClearSearchResults 清除搜索结果回调
- * @param onSelectSearchResult 选中搜索结果回调
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LocationPickerScreen(
@@ -91,7 +64,9 @@ fun LocationPickerScreen(
     onSearch: (String) -> Unit,
     onClearSearchResults: () -> Unit,
     onSelectSearchResult: (Map<String, Any>) -> Unit,
-    onNavigateUp: () -> Unit
+    onNavigateUp: () -> Unit,
+    isPickMode: Boolean = false,
+    onConfirmSelection: () -> Unit = {}
 ) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -102,62 +77,9 @@ fun LocationPickerScreen(
     // Location Input Dialog State
     var showLocationInputDialog by remember { mutableStateOf(false) }
 
-    // Run Mode Dialog State
-    var showRunModeDialog by remember { mutableStateOf(false) }
-    
     // Search State
     var isSearchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
-
-    if (showRunModeDialog) {
-        AlertDialog(
-            onDismissRequest = { showRunModeDialog = false },
-            title = { Text(stringResource(R.string.run_mode_dialog_title)) },
-            text = {
-                Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onRunModeChange("root")
-                                showRunModeDialog = false
-                            }
-                            .padding(16.dp)
-                    ) {
-                        RadioButton(
-                            selected = runMode == "root",
-                            onClick = null
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.run_mode_root))
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onRunModeChange("noroot")
-                                showRunModeDialog = false
-                            }
-                            .padding(16.dp)
-                    ) {
-                        RadioButton(
-                            selected = runMode == "noroot",
-                            onClick = null
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.run_mode_noroot))
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showRunModeDialog = false }) {
-                    Text(stringResource(android.R.string.cancel))
-                }
-            }
-        )
-    }
 
     if (showLocationInputDialog) {
         LocationInputDialog(
@@ -173,82 +95,14 @@ fun LocationPickerScreen(
         drawerState = drawerState,
         gesturesEnabled = drawerState.isOpen,
         drawerContent = {
-            ModalDrawerSheet {
-                DrawerHeader(appVersion)
-                HorizontalDivider()
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_location_simulation)) },
-                    icon = { Icon(painterResource(R.drawable.ic_position), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_location_simulation) } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_route_simulation)) },
-                    icon = { Icon(painterResource(R.drawable.ic_move), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_route_simulation) } }
-                )
-                
-                Text(
-                    text = stringResource(R.string.nav_menu_settings),
-                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-                    style = MaterialTheme.typography.labelSmall
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_settings)) },
-                    icon = { Icon(painterResource(R.drawable.ic_menu_settings), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_settings) } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_run_mode)) },
-                    icon = { Icon(painterResource(R.drawable.ic_menu_dev), contentDescription = null) }, // Reusing dev icon
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); showRunModeDialog = true } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_dev)) },
-                    icon = { Icon(painterResource(R.drawable.ic_menu_dev), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_dev) } }
-                )
-
-                Text(
-                    text = stringResource(R.string.nav_menu_more),
-                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-                    style = MaterialTheme.typography.labelSmall
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_upgrade)) },
-                    icon = { Icon(painterResource(R.drawable.ic_menu_upgrade), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_update) } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_feedback)) },
-                    icon = { Icon(painterResource(R.drawable.ic_menu_feedback), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_feedback) } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_contact)) },
-                    icon = { Icon(painterResource(R.drawable.ic_contact), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_contact) } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_sponsor)) },
-                    icon = { Icon(painterResource(R.drawable.ic_user), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_sponsor) } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_github)) },
-                    icon = { Icon(painterResource(R.drawable.ic_menu_dev), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_source_code) } }
-                )
-            }
+            AppDrawer(
+                drawerState = drawerState,
+                currentScreen = "LocationSimulation",
+                onNavigate = onNavigate,
+                appVersion = appVersion,
+                runMode = runMode,
+                onRunModeChange = onRunModeChange
+            )
         }
     ) {
         Scaffold(
@@ -308,8 +162,14 @@ fun LocationPickerScreen(
                     TopAppBar(
                         title = { Text(stringResource(R.string.app_name)) },
                         navigationIcon = {
-                            IconButton(onClick = onNavigateUp) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            if (isPickMode) {
+                                IconButton(onClick = onNavigateUp) {
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                                }
+                            } else {
+                                IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                    Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
+                                }
                             }
                         },
                         actions = {
@@ -329,13 +189,23 @@ fun LocationPickerScreen(
             floatingActionButton = {
                 Column(horizontalAlignment = Alignment.End) {
                     FloatingActionButton(
-                        onClick = onToggleMock,
+                        onClick = {
+                            if (isPickMode) {
+                                onConfirmSelection()
+                            } else {
+                                onToggleMock()
+                            }
+                        },
                         containerColor = MaterialTheme.colorScheme.secondary
                     ) {
-                        if (isMocking) {
-                            Icon(painterResource(R.drawable.ic_stop_black_24dp), contentDescription = "Stop", tint = Color.White)
+                        if (isPickMode) {
+                            Icon(Icons.Default.Check, contentDescription = "Confirm", tint = Color.White)
                         } else {
-                            Icon(painterResource(R.drawable.ic_play_arrow_black_24dp), contentDescription = "Start", tint = Color.White)
+                            if (isMocking) {
+                                Icon(painterResource(R.drawable.ic_stop_black_24dp), contentDescription = "Stop", tint = Color.White)
+                            } else {
+                                Icon(painterResource(R.drawable.ic_play_arrow_black_24dp), contentDescription = "Start", tint = Color.White)
+                            }
                         }
                     }
                 }

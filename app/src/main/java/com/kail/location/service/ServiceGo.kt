@@ -19,6 +19,7 @@ import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
+import com.baidu.mapapi.model.LatLng
 import com.elvishew.xlog.XLog
 import com.kail.location.views.locationpicker.LocationPickerActivity
 import com.kail.location.R
@@ -54,6 +55,8 @@ class ServiceGo : Service() {
 
     private val mBinder = ServiceGoBinder()
     private var mRoutePoints: MutableList<Pair<Double, Double>> = mutableListOf()
+    private var mRouteCumulativeDistances: MutableList<Double> = mutableListOf()
+    private var mTotalDistance: Double = 0.0
     private var mRouteIndex = 0
     private var mRouteLoop = false
     private var mSegmentProgressMeters = 0.0
@@ -84,11 +87,28 @@ class ServiceGo : Service() {
         const val EXTRA_ROUTE_SPEED = "EXTRA_ROUTE_SPEED"
         const val EXTRA_COORD_TYPE = "EXTRA_COORD_TYPE"
         const val EXTRA_RUN_MODE = "EXTRA_RUN_MODE"
+        const val EXTRA_CONTROL_ACTION = "EXTRA_CONTROL_ACTION"
+        const val EXTRA_SEEK_RATIO = "EXTRA_SEEK_RATIO"
+        const val CONTROL_PAUSE = "pause"
+        const val CONTROL_RESUME = "resume"
+        const val CONTROL_STOP = "stop"
+        const val CONTROL_SEEK = "seek"
         const val COORD_WGS84 = "WGS84"
         const val COORD_BD09 = "BD09"
         const val COORD_GCJ02 = "GCJ02"
 
+        const val ACTION_STATUS_CHANGED = "com.kail.location.service.STATUS_CHANGED"
+        const val EXTRA_IS_SIMULATING = "is_simulating"
+        const val EXTRA_IS_PAUSED = "is_paused"
         private const val PORTAL_PROVIDER = "portal"
+    }
+
+    private fun broadcastStatus() {
+        val intent = Intent(ACTION_STATUS_CHANGED)
+        intent.putExtra(EXTRA_IS_SIMULATING, locationLoopStarted && !isStop)
+        intent.putExtra(EXTRA_IS_PAUSED, isStop)
+        intent.setPackage(packageName)
+        sendBroadcast(intent)
     }
 
     /**
@@ -101,10 +121,6 @@ class ServiceGo : Service() {
         return mBinder
     }
 
-    /**
-     * 服务创建回调。
-     * 初始化通知、定位管理器、后台 Handler 以及摇杆。
-     */
     override fun onCreate() {
         super.onCreate()
         XLog.i("ServiceGo: onCreate started")
@@ -156,6 +172,7 @@ class ServiceGo : Service() {
             GoUtils.DisplayToast(applicationContext, "悬浮窗初始化失败: ${e.message}")
         }
 
+        broadcastStatus()
         XLog.i("ServiceGo: onCreate finished")
     }
 
@@ -169,6 +186,94 @@ class ServiceGo : Service() {
      * @return 返回服务的启动语义。
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Handle control actions (pause/resume/stop) early
+        if (intent != null) {
+            val ctrl = intent.getStringExtra(EXTRA_CONTROL_ACTION)
+            if (!ctrl.isNullOrBlank()) {
+                when (ctrl) {
+                    CONTROL_PAUSE -> {
+                        try {
+                            isStop = true
+                            if (this::mLocHandler.isInitialized) {
+                                mLocHandler.removeMessages(HANDLER_MSG_ID)
+                            }
+                            if (this::mJoyStick.isInitialized) {
+                                mJoyStick.setRoutePauseState(true)
+                            }
+                            broadcastStatus()
+                            XLog.i("ServiceGo: paused simulation loop")
+                        } catch (e: Exception) {
+                            XLog.e("ServiceGo: pause error", e)
+                        }
+                        return super.onStartCommand(intent, flags, startId)
+                    }
+                    CONTROL_RESUME -> {
+                        try {
+                            startLocationLoop()
+                            if (this::mJoyStick.isInitialized) {
+                                mJoyStick.setRoutePauseState(false)
+                            }
+                            broadcastStatus()
+                            XLog.i("ServiceGo: resumed simulation loop")
+                        } catch (e: Exception) {
+                            XLog.e("ServiceGo: resume error", e)
+                        }
+                        return super.onStartCommand(intent, flags, startId)
+                    }
+                    CONTROL_STOP -> {
+                        try {
+                            stopSelf()
+                            broadcastStatus() // Technically stopSelf calls onDestroy, but explicit broadcast helps
+                            XLog.i("ServiceGo: stopSelf via control action")
+                        } catch (e: Exception) {
+                            XLog.e("ServiceGo: stop error", e)
+                        }
+                        return super.onStartCommand(intent, flags, startId)
+                    }
+                    CONTROL_SEEK -> {
+                        try {
+                            val ratio = intent.getFloatExtra(EXTRA_SEEK_RATIO, 0f).coerceIn(0f, 1f)
+                            if (mRoutePoints.size >= 2 && mRouteCumulativeDistances.isNotEmpty()) {
+                                val targetDist = mTotalDistance * ratio
+                                var idx = 0
+                                for (i in 0 until mRouteCumulativeDistances.size - 1) {
+                                    if (targetDist >= mRouteCumulativeDistances[i] && targetDist < mRouteCumulativeDistances[i + 1]) {
+                                        idx = i
+                                        break
+                                    }
+                                }
+                                if (targetDist >= mTotalDistance) {
+                                    idx = mRoutePoints.size - 2
+                                }
+
+                                mRouteIndex = idx
+                                mSegmentProgressMeters = targetDist - mRouteCumulativeDistances[idx]
+
+                                val a = mRoutePoints[mRouteIndex]
+                                val b = mRoutePoints[(mRouteIndex + 1).coerceAtMost(mRoutePoints.size - 1)]
+                                val midLat = (a.second + b.second) / 2.0
+                                val metersPerDegLat = 110.574 * 1000.0
+                                val metersPerDegLng = 111.320 * 1000.0 * kotlin.math.cos(kotlin.math.abs(midLat) * Math.PI / 180.0)
+                                val dLatDeg2 = b.second - a.second
+                                val dLngDeg2 = b.first - a.first
+                                val segLenMeters = kotlin.math.sqrt((dLatDeg2 * metersPerDegLat) * (dLatDeg2 * metersPerDegLat) + (dLngDeg2 * metersPerDegLng) * (dLngDeg2 * metersPerDegLng))
+                                val f = if (segLenMeters > 0) (mSegmentProgressMeters / segLenMeters) else 0.0
+                                val dLngDeg = b.first - a.first
+                                val dLatDeg = b.second - a.second
+                                mCurLng = a.first + dLngDeg * f
+                                mCurLat = a.second + dLatDeg * f
+                                mCurBea = bearingDegrees(a.first, a.second, b.first, b.second)
+                                updateJoystickStatus()
+                                XLog.i("ServiceGo: seek to ratio=$ratio index=$mRouteIndex progress=$mSegmentProgressMeters")
+                            }
+                        } catch (e: Exception) {
+                            XLog.e("ServiceGo: seek error", e)
+                        }
+                        return super.onStartCommand(intent, flags, startId)
+                    }
+                }
+            }
+        }
         // Ensure startForeground is called to prevent crash (ForegroundServiceDidNotStartInTimeException)
         // even if onCreate was skipped (service already running)
         if (mNotification != null) {
@@ -232,6 +337,7 @@ class ServiceGo : Service() {
                 mRouteIndex = 0
                 mRouteLoop = intent.getBooleanExtra(EXTRA_ROUTE_LOOP, false)
                 mSegmentProgressMeters = 0.0
+                calculateRouteDistances()
             }
             
             XLog.i("ServiceGo: onStartCommand received lat=$mCurLat, lng=$mCurLng, runMode=$mRunMode")
@@ -251,7 +357,11 @@ class ServiceGo : Service() {
                     mJoyStick.setCurrentPosition(mCurLng, mCurLat, mCurAlt)
                     if (joystickEnabled) {
                         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)) {
-                            mJoyStick.show()
+                            if (mRoutePoints.isNotEmpty()) {
+                                mJoyStick.showRouteControl(mSpeed * 3.6) // Show Route Control if route exists
+                            } else {
+                                mJoyStick.show() // Show Manual Joystick otherwise
+                            }
                         } else {
                             GoUtils.DisplayToast(applicationContext, "请授予悬浮窗权限")
                         }
@@ -274,6 +384,12 @@ class ServiceGo : Service() {
     override fun onDestroy() {
         XLog.i("ServiceGo: onDestroy started")
         try {
+            val intent = Intent(ACTION_STATUS_CHANGED)
+            intent.putExtra(EXTRA_IS_SIMULATING, false)
+            intent.putExtra(EXTRA_IS_PAUSED, false)
+            intent.setPackage(packageName)
+            sendBroadcast(intent)
+
             isStop = true
             if (this::mLocHandler.isInitialized) {
                 mLocHandler.removeMessages(HANDLER_MSG_ID)
@@ -400,6 +516,23 @@ class ServiceGo : Service() {
                 mCurLat = lat
                 mCurAlt = alt
             }
+
+            override fun onRouteControl(action: String) {
+                val intent = Intent(this@ServiceGo, ServiceGo::class.java)
+                intent.putExtra(EXTRA_CONTROL_ACTION, action)
+                startService(intent)
+            }
+
+            override fun onRouteSeek(progress: Float) {
+                val intent = Intent(this@ServiceGo, ServiceGo::class.java)
+                intent.putExtra(EXTRA_CONTROL_ACTION, CONTROL_SEEK)
+                intent.putExtra(EXTRA_SEEK_RATIO, progress)
+                startService(intent)
+            }
+            
+            override fun onRouteSpeedChange(speed: Double) {
+                mSpeed = speed / 3.6 // km/h to m/s
+            }
         })
         // mJoyStick.show() // Removed to avoid unconditional show on init
     }
@@ -422,6 +555,7 @@ class ServiceGo : Service() {
                     if (!isStop) {
                         if (mRoutePoints.size >= 2) {
                             advanceAlongRoute(mSpeed * 0.1)
+                            updateJoystickStatus()
                         }
                         if (mRunMode == "root") {
                             portalTick()
@@ -620,6 +754,44 @@ class ServiceGo : Service() {
                 mCurBea = bearingDegrees(a.first, a.second, b.first, b.second)
                 remaining = 0.0
             }
+        }
+    }
+
+    private fun calculateRouteDistances() {
+        mRouteCumulativeDistances.clear()
+        mRouteCumulativeDistances.add(0.0)
+        var total = 0.0
+        for (i in 0 until mRoutePoints.size - 1) {
+            val a = mRoutePoints[i]
+            val b = mRoutePoints[i + 1]
+            val midLat = (a.second + b.second) / 2.0
+            val metersPerDegLat = 110.574 * 1000.0
+            val metersPerDegLng = 111.320 * 1000.0 * kotlin.math.cos(kotlin.math.abs(midLat) * Math.PI / 180.0)
+            val dLatDeg = b.second - a.second
+            val dLngDeg = b.first - a.first
+            val seg = kotlin.math.sqrt((dLatDeg * metersPerDegLat) * (dLatDeg * metersPerDegLat) + (dLngDeg * metersPerDegLng) * (dLngDeg * metersPerDegLng))
+            total += seg
+            mRouteCumulativeDistances.add(total)
+        }
+        mTotalDistance = total
+    }
+
+    private fun updateJoystickStatus() {
+        if (this::mJoyStick.isInitialized && mRoutePoints.isNotEmpty()) {
+            val currentDist = if (mRouteIndex < mRouteCumulativeDistances.size)
+                mRouteCumulativeDistances[mRouteIndex] + mSegmentProgressMeters
+            else mTotalDistance
+
+            val progress = if (mTotalDistance > 0) (currentDist / mTotalDistance).toFloat() else 0f
+            val distStr = if (currentDist > 1000) String.format("%.2fkm", currentDist / 1000) else String.format("%.0fm", currentDist)
+            val totalDistStr = if (mTotalDistance > 1000) String.format("%.2fkm", mTotalDistance / 1000) else String.format("%.0fm", mTotalDistance)
+
+            val displayStr = "$distStr / $totalDistStr"
+
+            val bd = MapUtils.wgs2bd(mCurLng, mCurLat)
+            val latLng = LatLng(bd[1], bd[0])
+
+            mJoyStick.updateRouteStatus(progress, displayStr, latLng)
         }
     }
 

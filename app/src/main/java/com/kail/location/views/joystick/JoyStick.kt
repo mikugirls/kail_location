@@ -35,6 +35,7 @@ import java.math.RoundingMode
 import java.util.*
 import kotlin.math.cos
 import kotlin.math.sin
+import com.kail.location.views.joystick.FloatingNavigationControlOverlay
 
 /**
  * Custom View representing a joystick for location simulation.
@@ -81,6 +82,16 @@ class JoyStick @JvmOverloads constructor(
     private var mMarkMapLngLat: LatLng? = null
     private lateinit var mSuggestionSearch: SuggestionSearch
 
+    /* Route Control Window related */
+    private lateinit var mRouteControlLayout: ComposeView
+    // private lateinit var mRouteAdjustLayout: ComposeView // Merged into control layout
+    private var mIsRoutePaused = mutableStateOf(false)
+    private var mRouteSpeed = mutableStateOf(0.0)
+    private var mRouteProgress = mutableStateOf(0f)
+    private var mRouteTotalDistance = mutableStateOf("0m")
+    private lateinit var mRouteMapView: MapView
+    private lateinit var mRouteBaiduMap: BaiduMap
+
     // LifecycleOwner for Compose in WindowManager
     private val mLifecycleOwner = MyLifecycleOwner()
 
@@ -89,6 +100,7 @@ class JoyStick @JvmOverloads constructor(
         private const val WINDOW_TYPE_JOYSTICK = 0
         private const val WINDOW_TYPE_MAP = 1
         private const val WINDOW_TYPE_HISTORY = 2
+        private const val WINDOW_TYPE_ROUTE_CONTROL = 3
         
         /**
          * Custom LifecycleOwner for ComposeViews in WindowManager.
@@ -139,6 +151,8 @@ class JoyStick @JvmOverloads constructor(
                 XLog.e("JoyStick: Error initializing MapView", e)
             }
             initHistoryView()
+            initRouteControlView()
+            initRouteAdjustView()
             
             // Start Lifecycle
             mLifecycleOwner.onCreate()
@@ -167,37 +181,28 @@ class JoyStick @JvmOverloads constructor(
     fun show() {
         try {
             when (mCurWin) {
+                WINDOW_TYPE_ROUTE_CONTROL -> {
+                    hideAll()
+                    if (this::mRouteControlLayout.isInitialized && mRouteControlLayout.parent == null) {
+                        mWindowManager.addView(mRouteControlLayout, mWindowParamCurrent)
+                    }
+                }
                 WINDOW_TYPE_MAP -> {
-                    if (this::mJoystickLayout.isInitialized && mJoystickLayout.parent != null) {
-                        mWindowManager.removeView(mJoystickLayout)
-                    }
-                    if (this::mHistoryLayout.isInitialized && mHistoryLayout.parent != null) {
-                        mWindowManager.removeView(mHistoryLayout)
-                    }
+                    hideAll()
                     if (this::mMapLayout.isInitialized && mMapLayout.parent == null) {
                         resetBaiduMap()
                         mWindowManager.addView(mMapLayout, mWindowParamCurrent)
                     }
                 }
                 WINDOW_TYPE_HISTORY -> {
-                    if (this::mMapLayout.isInitialized && mMapLayout.parent != null) {
-                        mWindowManager.removeView(mMapLayout)
-                    }
-                    if (this::mJoystickLayout.isInitialized && mJoystickLayout.parent != null) {
-                        mWindowManager.removeView(mJoystickLayout)
-                    }
+                    hideAll()
                     if (this::mHistoryLayout.isInitialized && mHistoryLayout.parent == null) {
                         fetchAllRecord()
                         mWindowManager.addView(mHistoryLayout, mWindowParamCurrent)
                     }
                 }
                 WINDOW_TYPE_JOYSTICK -> {
-                    if (this::mMapLayout.isInitialized && mMapLayout.parent != null) {
-                        mWindowManager.removeView(mMapLayout)
-                    }
-                    if (this::mHistoryLayout.isInitialized && mHistoryLayout.parent != null) {
-                        mWindowManager.removeView(mHistoryLayout)
-                    }
+                    hideAll()
                     if (this::mJoystickLayout.isInitialized && mJoystickLayout.parent == null) {
                         mWindowManager.addView(mJoystickLayout, mWindowParamCurrent)
                     }
@@ -208,21 +213,26 @@ class JoyStick @JvmOverloads constructor(
         }
     }
 
+    private fun hideAll() {
+        if (this::mJoystickLayout.isInitialized && mJoystickLayout.parent != null) {
+            mWindowManager.removeView(mJoystickLayout)
+        }
+        if (this::mHistoryLayout.isInitialized && mHistoryLayout.parent != null) {
+            mWindowManager.removeView(mHistoryLayout)
+        }
+        if (this::mMapLayout.isInitialized && mMapLayout.parent != null) {
+            mWindowManager.removeView(mMapLayout)
+        }
+        if (this::mRouteControlLayout.isInitialized && mRouteControlLayout.parent != null) {
+            mWindowManager.removeView(mRouteControlLayout)
+        }
+    }
+
     /**
      * Hides all joystick windows.
      */
     fun hide() {
-        if (this::mMapLayout.isInitialized && mMapLayout.parent != null) {
-            mWindowManager.removeViewImmediate(mMapLayout)
-        }
-
-        if (this::mJoystickLayout.isInitialized && mJoystickLayout.parent != null) {
-            mWindowManager.removeViewImmediate(mJoystickLayout)
-        }
-
-        if (this::mHistoryLayout.isInitialized && mHistoryLayout.parent != null) {
-            mWindowManager.removeViewImmediate(mHistoryLayout)
-        }
+        hideAll()
     }
 
     /**
@@ -247,6 +257,10 @@ class JoyStick @JvmOverloads constructor(
             if (this::mHistoryLayout.isInitialized && mHistoryLayout.parent != null) {
                 mWindowManager.removeViewImmediate(mHistoryLayout)
             }
+            
+            if (this::mRouteControlLayout.isInitialized && mRouteControlLayout.parent != null) {
+                mWindowManager.removeViewImmediate(mRouteControlLayout)
+            }
 
             if (this::mBaiduMap.isInitialized) {
                 mBaiduMap.isMyLocationEnabled = false
@@ -254,8 +268,29 @@ class JoyStick @JvmOverloads constructor(
             if (this::mMapView.isInitialized) {
                 mMapView.onDestroy()
             }
+            if (this::mRouteBaiduMap.isInitialized) {
+                mRouteBaiduMap.isMyLocationEnabled = false
+            }
+            if (this::mRouteMapView.isInitialized) {
+                mRouteMapView.onDestroy()
+            }
         } catch (e: Exception) {
             XLog.e("JoyStick: Error in destroy()", e)
+        }
+    }
+
+    fun updateRouteStatus(progress: Float, distance: String, currentLatLng: LatLng?) {
+        mRouteProgress.value = progress
+        mRouteTotalDistance.value = distance
+        
+        if (currentLatLng != null && this::mRouteBaiduMap.isInitialized) {
+             val locData = MyLocationData.Builder()
+                .latitude(currentLatLng.latitude)
+                .longitude(currentLatLng.longitude)
+                .build()
+            mRouteBaiduMap.setMyLocationData(locData)
+            val update = MapStatusUpdateFactory.newLatLng(currentLatLng)
+            mRouteBaiduMap.animateMapStatus(update)
         }
     }
 
@@ -412,6 +447,10 @@ class JoyStick @JvmOverloads constructor(
          * @param alt Altitude.
          */
         fun onPositionInfo(lng: Double, lat: Double, alt: Double)
+
+        fun onRouteControl(action: String) {}
+        fun onRouteSeek(progress: Float) {}
+        fun onRouteSpeedChange(speed: Double) {}
     }
 
 
@@ -693,6 +732,74 @@ class JoyStick @JvmOverloads constructor(
         } catch (e: Exception) {
             Log.e("JOYSTICK", "ERROR - fetchAllRecord")
         }
+    }
+
+    fun showRouteControl(initialSpeed: Double) {
+        mCurWin = WINDOW_TYPE_ROUTE_CONTROL
+        mRouteSpeed.value = initialSpeed
+        show()
+    }
+    
+    fun setRoutePauseState(isPaused: Boolean) {
+        mIsRoutePaused.value = isPaused
+    }
+    
+    @SuppressLint("InflateParams")
+    private fun initRouteControlView() {
+        mRouteMapView = MapView(mContext)
+        mRouteMapView.showZoomControls(false)
+        mRouteBaiduMap = mRouteMapView.map
+        mRouteBaiduMap.mapType = BaiduMap.MAP_TYPE_NORMAL
+        mRouteBaiduMap.isMyLocationEnabled = true
+        
+        mRouteControlLayout = ComposeView(mContext).apply {
+            setViewTreeLifecycleOwner(mLifecycleOwner)
+            setViewTreeViewModelStoreOwner(mLifecycleOwner)
+            setViewTreeSavedStateRegistryOwner(mLifecycleOwner)
+            
+            setContent {
+                val isPaused by mIsRoutePaused
+                val speed by mRouteSpeed
+                val progress by mRouteProgress
+                val distance by mRouteTotalDistance
+                
+                FloatingNavigationControlOverlay(
+                    mapView = mRouteMapView,
+                    isPaused = isPaused,
+                    speed = speed,
+                    progress = progress,
+                    totalDistance = distance,
+                    onPauseResume = { 
+                        val newState = !isPaused
+                        mIsRoutePaused.value = newState
+                        mListener?.onRouteControl(if (newState) "pause" else "resume")
+                    },
+                    onStop = { 
+                        mListener?.onRouteControl("stop")
+                    },
+                    onRestart = {
+                        mListener?.onRouteControl("restart")
+                    },
+                    onSeek = { newProgress ->
+                         mRouteProgress.value = newProgress
+                         mListener?.onRouteSeek(newProgress)
+                    },
+                    onSpeedChange = { newSpeed ->
+                        mRouteSpeed.value = newSpeed
+                        mListener?.onRouteSpeedChange(newSpeed)
+                    },
+                    onWindowDrag = { dx, dy ->
+                        mWindowParamCurrent.x += dx.toInt()
+                        mWindowParamCurrent.y += dy.toInt()
+                        mWindowManager.updateViewLayout(this, mWindowParamCurrent)
+                    }
+                )
+            }
+        }
+    }
+
+    // Merged into initRouteControlView
+    private fun initRouteAdjustView() {
     }
 
 

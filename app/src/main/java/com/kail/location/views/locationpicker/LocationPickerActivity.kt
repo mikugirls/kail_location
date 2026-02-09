@@ -28,7 +28,10 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
 import com.baidu.location.BDAbstractLocationListener
@@ -105,6 +108,11 @@ class LocationPickerActivity : BaseActivity(), SensorEventListener {
         const val LAT_MSG_ID = "LAT_VALUE"
         const val LNG_MSG_ID = "LNG_VALUE"
         const val ALT_MSG_ID = "ALT_VALUE"
+        
+        const val EXTRA_PICK_MODE = "extra_pick_mode"
+        const val RESULT_LAT = "result_lat"
+        const val RESULT_LNG = "result_lng"
+        const val RESULT_NAME = "result_name"
 
         // 使用 lazy 加载或者在使用前判空，防止静态初始化崩溃
         val mMapIndicator: BitmapDescriptor by lazy { BitmapDescriptorFactory.fromResource(R.drawable.icon_gcoding) }
@@ -220,6 +228,8 @@ class LocationPickerActivity : BaseActivity(), SensorEventListener {
             val targetLocation by viewModel.targetLocation.collectAsState()
             val mapType by viewModel.mapType.collectAsState()
             val currentCity by viewModel.currentCity.collectAsState()
+            
+            val isPickMode = intent.getBooleanExtra(EXTRA_PICK_MODE, false)
 
             locationTheme {
                 LocationPickerScreen(
@@ -230,6 +240,16 @@ class LocationPickerActivity : BaseActivity(), SensorEventListener {
                     currentCity = currentCity,
                     runMode = runMode,
                     onRunModeChange = { viewModel.setRunMode(it) },
+                    isPickMode = isPickMode,
+                    onConfirmSelection = {
+                         val data = Intent().apply {
+                             putExtra(RESULT_LAT, mMarkLatLngMap.latitude)
+                             putExtra(RESULT_LNG, mMarkLatLngMap.longitude)
+                             putExtra(RESULT_NAME, mMarkName ?: "Unknown")
+                         }
+                         setResult(RESULT_OK, data)
+                         finish()
+                    },
                     onToggleMock = {
                         if (runMode == LocationPickerViewModel.RUN_MODE_ROOT) {
                             viewModel.toggleMock()
@@ -272,7 +292,9 @@ class LocationPickerActivity : BaseActivity(), SensorEventListener {
                             R.id.nav_location_simulation -> startActivity(Intent(this, LocationSimulationActivity::class.java))
                             R.id.nav_history -> startActivity(Intent(this, HistoryActivity::class.java))
                             R.id.nav_route_simulation -> startActivity(Intent(this, RouteSimulationActivity::class.java))
+                            R.id.nav_navigation_simulation -> startActivity(Intent(this, com.kail.location.views.navigationsimulation.NavigationSimulationActivity::class.java))
                             R.id.nav_settings -> startActivity(Intent(this, SettingsActivity::class.java))
+
                             R.id.nav_sponsor -> startActivity(Intent(this, com.kail.location.views.sponsor.SponsorActivity::class.java))
                             R.id.nav_dev -> {
                                 try {
@@ -340,10 +362,12 @@ class LocationPickerActivity : BaseActivity(), SensorEventListener {
             }
         }
 
-        lifecycleScope.launchWhenStarted {
-            viewModel.uiEvents.collect { event ->
-                when (event) {
-                    LocationPickerViewModel.UiEvent.NavigateUp -> onBackPressedDispatcher.onBackPressed()
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.uiEvents.collect { event ->
+                    when (event) {
+                        LocationPickerViewModel.UiEvent.NavigateUp -> onBackPressedDispatcher.onBackPressed()
+                    }
                 }
             }
         }

@@ -15,6 +15,7 @@ import com.kail.location.views.settings.SettingsActivity
 import android.widget.Toast
 
 import com.kail.location.views.locationpicker.LocationPickerActivity
+import com.kail.location.views.navigationsimulation.NavigationSimulationActivity
 
 
 /**
@@ -63,6 +64,9 @@ class LocationSimulationActivity : BaseActivity() {
                             R.id.nav_route_simulation -> {
                                 startActivity(Intent(this, RouteSimulationActivity::class.java))
                             }
+                            R.id.nav_navigation_simulation -> {
+                                startActivity(Intent(this, NavigationSimulationActivity::class.java))
+                            }
                             R.id.nav_settings -> {
                                 startActivity(Intent(this, SettingsActivity::class.java))
                             }
@@ -95,6 +99,9 @@ class LocationSimulationActivity : BaseActivity() {
                                 } catch (e: Exception) {
                                     Toast.makeText(this, "无法打开浏览器", Toast.LENGTH_SHORT).show()
                                 }
+                            }
+                            R.id.nav_update -> {
+                                viewModel.checkUpdate(this)
                             }
                             // Add other navigation cases as needed
                             else -> {

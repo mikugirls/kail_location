@@ -215,14 +215,11 @@ class ServiceGo : Service() {
                     CONTROL_PAUSE -> {
                         try {
                             isStop = true
-                            if (this::mLocHandler.isInitialized) {
-                                mLocHandler.removeMessages(HANDLER_MSG_ID)
-                            }
                             if (this::mJoyStick.isInitialized) {
                                 mJoyStick.setRoutePauseState(true)
                             }
                             broadcastStatus()
-                            Log.i("ServiceGo", "ServiceGo: paused simulation loop")
+                            Log.i("ServiceGo", "ServiceGo: paused simulation (isStop=true)")
                         } catch (e: Exception) {
                             Log.e("ServiceGo", "ServiceGo: pause error", e)
                         }
@@ -230,12 +227,12 @@ class ServiceGo : Service() {
                     }
                     CONTROL_RESUME -> {
                         try {
-                            startLocationLoop()
+                            isStop = false
                             if (this::mJoyStick.isInitialized) {
                                 mJoyStick.setRoutePauseState(false)
                             }
                             broadcastStatus()
-                            Log.i("ServiceGo", "ServiceGo: resumed simulation loop")
+                            Log.i("ServiceGo", "ServiceGo: resumed simulation (isStop=false)")
                         } catch (e: Exception) {
                             Log.e("ServiceGo", "ServiceGo: resume error", e)
                         }
@@ -598,11 +595,11 @@ class ServiceGo : Service() {
         mLocHandlerThread.start()
         // Handler 对象与 HandlerThread 的 Looper 对象的绑定
         mLocHandler = object : Handler(mLocHandlerThread.looper) {
-            // 这里的Handler对象可以看作是绑定在HandlerThread子线程中，所以handlerMessage里的操作是在子线程中运行的
             override fun handleMessage(msg: Message) {
                 try {
                     Thread.sleep(100)
 
+                    // If not paused, advance the position along the route
                     if (!isStop) {
                         if (mRoutePoints.size >= 2) {
                             val speedForStep = if (speedFluctuation) {
@@ -613,20 +610,20 @@ class ServiceGo : Service() {
                             advanceAlongRoute(speedForStep * 0.1)
                             updateJoystickStatus()
                         }
-                        if (mRunMode == "root") {
-                            portalTick()
-                        }
+                    }
+
+                    // Always push mock location, even when paused (isStop=true).
+                    // This prevents the system from reverting to real location while paused.
+                    if (mRunMode == "root") {
+                        portalTick()
+                    } else {
                         setLocationNetwork()
                         setLocationGPS()
-                        if (mRunMode == "root" && mRoutePoints.size >= 2) {
-                            Log.i(
-                                "ServiceGo",
-                                "ROOT路线更新：纬度=$mCurLat，经度=$mCurLng，速度(m/s)=$mSpeed，航向(度)=$mCurBea，段索引=$mRouteIndex，段进度(米)=$mSegmentProgressMeters"
-                            )
-                        }
-
-                        sendEmptyMessage(HANDLER_MSG_ID)
                     }
+
+                    // Always schedule next update as long as the service is alive.
+                    // The loop is only truly stopped in onDestroy.
+                    sendEmptyMessage(HANDLER_MSG_ID)
                 } catch (e: InterruptedException) {
                     Log.e("ServiceGo", "SERVICEGO: ERROR - handleMessage interrupted")
                     Thread.currentThread().interrupt()
@@ -647,9 +644,9 @@ class ServiceGo : Service() {
      * - 发送首个 Handler 消息，进入 100ms 周期的更新循环
      */
     private fun startLocationLoop() {
-        if (locationLoopStarted) return
         if (!this::mLocHandler.isInitialized) return
         isStop = false
+        if (locationLoopStarted) return // Already running the loop
         locationLoopStarted = true
         mLocHandler.sendEmptyMessage(HANDLER_MSG_ID)
     }
@@ -770,7 +767,8 @@ class ServiceGo : Service() {
      */
     private fun portalTick() {
         if (!portalStartIfNeeded()) return
-        portalSend("set_speed") { putFloat("speed", mSpeed.toFloat()) }
+        val speedToSet = if (isStop) 0.0f else mSpeed.toFloat()
+        portalSend("set_speed") { putFloat("speed", speedToSet) }
         portalSend("set_bearing") { putDouble("bearing", mCurBea.toDouble()) }
         portalSend("update_location") {
             putDouble("lat", mCurLat)
@@ -970,13 +968,14 @@ class ServiceGo : Service() {
             loc.latitude = mCurLat                   // 纬度（度）
             loc.longitude = mCurLng                  // 经度（度）
             loc.time = System.currentTimeMillis()    // 本地时间
+            val speedToSet = if (isStop) 0.0f else mSpeed.toFloat()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                loc.speed = mSpeed.toFloat()
+                loc.speed = speedToSet
                 loc.speedAccuracyMetersPerSecond = 0.1f
                 loc.verticalAccuracyMeters = 0.1f
                 loc.bearingAccuracyDegrees = 0.1f
             } else {
-                loc.speed = mSpeed.toFloat()
+                loc.speed = speedToSet
             }
             loc.elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
             val bundle = Bundle()
@@ -1049,13 +1048,14 @@ class ServiceGo : Service() {
             loc.latitude = mCurLat                   // 纬度（度）
             loc.longitude = mCurLng                  // 经度（度）
             loc.time = System.currentTimeMillis()    // 本地时间
+            val speedToSet = if (isStop) 0.0f else mSpeed.toFloat()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                loc.speed = mSpeed.toFloat()
+                loc.speed = speedToSet
                 loc.speedAccuracyMetersPerSecond = 0.1f
                 loc.verticalAccuracyMeters = 0.1f
                 loc.bearingAccuracyDegrees = 0.1f
             } else {
-                loc.speed = mSpeed.toFloat()
+                loc.speed = speedToSet
             }
             loc.elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
             val bundle = Bundle()

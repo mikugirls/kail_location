@@ -267,8 +267,7 @@ fun EditTextPreference(
                         value = tempValue,
                         onValueChange = { tempValue = it },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                        singleLine = true,
-                        placeholder = { Text("如: 0x394a4") }
+                        singleLine = true
                     )
                     if (description.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(8.dp))

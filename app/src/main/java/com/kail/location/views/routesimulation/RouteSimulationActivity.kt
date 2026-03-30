@@ -58,7 +58,8 @@ class RouteSimulationActivity : BaseActivity(), SensorEventListener {
         // Initialize MapView
         mMapView = MapView(this)
         mBaiduMap = mMapView?.map
-        mBaiduMap?.isMyLocationEnabled = true
+        // 关闭百度地图自身定位层，避免与模拟位置冲突
+        mBaiduMap?.isMyLocationEnabled = false
         initMapLocation()
         KailLog.i(this, "RouteSimulationActivity", "Map and location initialized")
         
@@ -233,14 +234,8 @@ class RouteSimulationActivity : BaseActivity(), SensorEventListener {
      * 开启我的位置层，配置定位选项并启动定位，首个有效定位时移动地图视角到当前位置。
      */
     private fun initMapLocation() {
-        mBaiduMap?.isMyLocationEnabled = true
-        mBaiduMap?.setMyLocationConfiguration(
-            MyLocationConfiguration(
-                MyLocationConfiguration.LocationMode.NORMAL,
-                true,
-                null
-            )
-        )
+        // 不使用百度地图自身定位层，只用 LocationClient 获取位置后手动设置
+        mBaiduMap?.isMyLocationEnabled = false
         // 建议使用 ApplicationContext 初始化 LocationClient，避免内存泄漏并确保 Context 稳定
         mLocClient = LocationClient(applicationContext)
 

@@ -653,9 +653,15 @@ class ServiceGoRoot : Service() {
         }
 
         KailLog.i(this, "ServiceGoRoot", ">>> soFile exists: ${soFile.exists()}")
+
+        KailLog.i(this, "ServiceGoRoot", ">>> Getting offsets...")
+        val offsets = getOffsetsFromSystem()
+        KailLog.i(this, "ServiceGoRoot", ">>> Got offsets: writeOffset=${offsets.first}, convertOffset=${offsets.second}")
         
         val loadResult = portalSend("load_library") {
             putString("path", soFile.absolutePath)
+            putString("write_offset", offsets.first)
+            putString("convert_offset", offsets.second)
         }
         
         KailLog.i(this, "ServiceGoRoot", ">>> loadResult: $loadResult")
@@ -672,6 +678,38 @@ class ServiceGoRoot : Service() {
         }
         
         return loadResult
+    }
+
+    private fun getOffsetsFromSystem(): Pair<String, String> {
+        val commands = listOf("toybox readelf", "readelf")
+        
+        for (cmd in commands) {
+            try {
+                KailLog.i(this, "ServiceGoRoot", ">>> Trying command: $cmd")
+                val sensorOut = com.kail.location.utils.ShellUtils.executeCommand("$cmd -Ws /system/lib64/libsensor.so 2>/dev/null | grep _ZN7android7BitTube11sendObjects")
+                val sensorServiceOut = com.kail.location.utils.ShellUtils.executeCommand("$cmd -Ws /system/lib64/libsensorservice.so 2>/dev/null | grep _ZN7android8hardware7sensors14implementation20convertToSensorEvent")
+                
+                KailLog.i(this, "ServiceGoRoot", ">>> sensorOut: $sensorOut")
+                KailLog.i(this, "ServiceGoRoot", ">>> sensorServiceOut: $sensorServiceOut")
+                
+                if (sensorOut.isNotEmpty() && sensorServiceOut.isNotEmpty()) {
+                    val sensorOffset = sensorOut.trim().split(":").getOrNull(1)?.trim()?.split(" ")?.getOrNull(0)?.trim() ?: ""
+                    val sensorServiceOffset = sensorServiceOut.trim().split(":").getOrNull(1)?.trim()?.split(" ")?.getOrNull(0)?.trim() ?: ""
+                    if (sensorOffset.isNotEmpty() && sensorServiceOffset.isNotEmpty()) {
+                        val finalSensorOffset = if (sensorOffset.startsWith("0x")) sensorOffset else "0x$sensorOffset"
+                        val finalSensorServiceOffset = if (sensorServiceOffset.startsWith("0x")) sensorServiceOffset else "0x$sensorServiceOffset"
+                        KailLog.i(this, "ServiceGoRoot", ">>> Got offsets: sensor=$finalSensorOffset, sensorService=$finalSensorServiceOffset")
+                        return Pair(finalSensorOffset, finalSensorServiceOffset)
+                    }
+                }
+            } catch (e: Exception) {
+                KailLog.e(this, "ServiceGoRoot", ">>> getOffsets exception: ${e.message}")
+                continue
+            }
+        }
+        
+        KailLog.e(this, "ServiceGoRoot", ">>> readelf not available")
+        throw Exception("Failed to get offsets: readelf not available")
     }
 
     private fun portalSend(commandId: String, block: Bundle.() -> Unit = {}): Boolean {

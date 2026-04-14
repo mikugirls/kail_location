@@ -121,12 +121,8 @@ internal object FakeLocState {
     fun loadNativeLibrary(path: String, writeOffset: String = "", convertOffset: String = ""): Pair<Boolean, String> {
         KailLog.i(null, TAG, ">>> loadNativeLibrary called: path=$path, writeOffset=$writeOffset, convertOffset=$convertOffset")
         
-        KailLog.i(null, TAG, ">>> Calling getOffsets()...")
-        val offsets = getOffsets()
-        KailLog.i(null, TAG, ">>> getOffsets returned: $offsets")
-        
-        val finalWriteOffset = if (writeOffset.isNotEmpty()) writeOffset else offsets.first
-        val finalConvertOffset = if (convertOffset.isNotEmpty()) convertOffset else offsets.second
+        val finalWriteOffset = writeOffset
+        val finalConvertOffset = convertOffset
         
         KailLog.i(null, TAG, ">>> finalWriteOffset=$finalWriteOffset, finalConvertOffset=$finalConvertOffset")
         
@@ -320,36 +316,7 @@ internal object FakeLocState {
         }
     }
 
-    fun getOffsets(): Pair<String, String> {
-        KailLog.i(null, TAG, ">>> getOffsets() called")
-        val commands = listOf("toybox readelf", "readelf")
-        
-        for (cmd in commands) {
-            try {
-                KailLog.i(null, TAG, ">>> Trying command: $cmd")
-                val sensorOut = ShellUtils.executeCommand("$cmd -Ws /system/lib64/libsensor.so 2>/dev/null | grep _ZN7android7BitTube11sendObjects")
-                val sensorServiceOut = ShellUtils.executeCommand("$cmd -Ws /system/lib64/libsensorservice.so 2>/dev/null | grep _ZN7android8hardware7sensors14implementation20convertToSensorEvent")
-                
-                KailLog.i(null, TAG, ">>> sensorOut: $sensorOut")
-                KailLog.i(null, TAG, ">>> sensorServiceOut: $sensorServiceOut")
-                
-                if (sensorOut.isNotEmpty() && sensorServiceOut.isNotEmpty()) {
-                    val sensorOffset = sensorOut.trim().split(":").getOrNull(0)?.trim()?.split(" ")?.getOrNull(0) ?: ""
-                    val sensorServiceOffset = sensorServiceOut.trim().split(":").getOrNull(0)?.trim()?.split(" ")?.getOrNull(0) ?: ""
-                    if (sensorOffset.isNotEmpty() && sensorServiceOffset.isNotEmpty()) {
-                        KailLog.i(null, "NativeHook", ">>> Got offsets: sensor=$sensorOffset, sensorService=$sensorServiceOffset")
-                        return Pair(sensorOffset, sensorServiceOffset)
-                    }
-                }
-            } catch (e: Exception) {
-                KailLog.e(null, TAG, ">>> getOffsets exception: ${e.message}")
-                continue
-            }
-        }
-        
-        KailLog.e(null, "NativeHook", ">>> readelf not available")
-        throw Exception("Failed to get offsets: readelf not available")
-    }
+
 
     // Native methods (implemented in C++)
     private external fun nativeSetWriteOffset(offset: Long)

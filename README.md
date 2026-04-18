@@ -1,3 +1,5 @@
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fnoellegazelle6%2Fkail_location.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fnoellegazelle6%2Fkail_location?ref=badge_shield)
+
 路线模拟，位置模拟，导航模拟，步频模拟
 
 [传感器参数](传感器参数.md)
@@ -51,3 +53,7 @@ https://github.com/Hilaver/MockGPS
 TVvudxmNTwzRFe3z7ts9srZE1srkqXgmxm
 
 
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fnoellegazelle6%2Fkail_location.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fnoellegazelle6%2Fkail_location?ref=badge_large)

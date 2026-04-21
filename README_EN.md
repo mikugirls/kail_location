@@ -1,5 +1,6 @@
 Route & Location Simulation，
 Cadence simulation
+nfc simulation
 
 [Sensor parameters](传感器参数.md)
 

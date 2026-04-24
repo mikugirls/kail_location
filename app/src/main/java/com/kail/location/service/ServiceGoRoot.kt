@@ -694,8 +694,8 @@ class ServiceGoRoot : Service() {
             try {
                 KailLog.i(this, "ServiceGoRoot", ">>> Trying command: $cmd")
                 val sensorOut = com.kail.location.utils.ShellUtils.executeCommand("$cmd -Ws /system/lib64/libsensor.so 2>/dev/null | grep _ZN7android7BitTube11sendObjects")
-                val sensorServiceOut = com.kail.location.utils.ShellUtils.executeCommand("$cmd -Ws /system/lib64/libsensorservice.so 2>/dev/null | grep _ZN7android8hardware7sensors14implementation20convertToSensorEvent")
-                val sensorServiceV1Out = com.kail.location.utils.ShellUtils.executeCommand("$cmd -Ws /system/lib64/libsensorservice.so 2>/dev/null | grep _ZN7android8hardware7sensors4V1_014implementation20convertToSensorEvent")
+                val sensorServiceOut = com.kail.location.utils.ShellUtils.executeCommand("$cmd -Ws /system/lib64/libsensorservice.so 2>/dev/null | grep '_ZN7android8hardware7sensors14implementation20convertToSensorEvent[^4V1]'")
+                val sensorServiceV1Out = com.kail.location.utils.ShellUtils.executeCommand("$cmd -Ws /system/lib64/libsensorservice.so 2>/dev/null | grep '_ZN7android8hardware7sensors4V1_014implementation20convertToSensorEvent'")
                 
                 KailLog.i(this, "ServiceGoRoot", ">>> sensorOut: $sensorOut")
                 KailLog.i(this, "ServiceGoRoot", ">>> sensorServiceOut: $sensorServiceOut")

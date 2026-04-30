@@ -151,27 +151,36 @@ object GoUtils {
             }
 
             if (index < list.size) {
-                // 注意，由于 android api 问题，下面的参数会提示错误(以下参数是通过相关API获取的真实GPS参数，不是随便写的)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    locationManager.addTestProvider(
-                        LocationManager.GPS_PROVIDER, false, true, false,
-                        false, true, true, true, ProviderProperties.POWER_USAGE_HIGH, ProviderProperties.ACCURACY_FINE
-                    )
-                } else {
-                    @Suppress("DEPRECATION")
-                    locationManager.addTestProvider(
-                        LocationManager.GPS_PROVIDER, false, true, false,
-                        false, true, true, true, Criteria.POWER_HIGH, Criteria.ACCURACY_FINE
-                    )
+                try {
+                    if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            locationManager.addTestProvider(
+                                LocationManager.GPS_PROVIDER, false, true, false,
+                                false, true, true, true, ProviderProperties.POWER_USAGE_HIGH, ProviderProperties.ACCURACY_FINE
+                            )
+                        } else {
+                            @Suppress("DEPRECATION")
+                            locationManager.addTestProvider(
+                                LocationManager.GPS_PROVIDER, false, true, false,
+                                false, true, true, true, Criteria.POWER_HIGH, Criteria.ACCURACY_FINE
+                            )
+                        }
+                        canMockPosition = true
+                    } else {
+                        canMockPosition = true
+                    }
+                } catch (e: IllegalArgumentException) {
+                    canMockPosition = true
                 }
-                canMockPosition = true
             }
 
             // 模拟位置可用
             if (canMockPosition) {
-                // remove test provider
-                locationManager.setTestProviderEnabled(LocationManager.GPS_PROVIDER, false)
-                locationManager.removeTestProvider(LocationManager.GPS_PROVIDER)
+                try {
+                    locationManager.setTestProviderEnabled(LocationManager.GPS_PROVIDER, false)
+                    locationManager.removeTestProvider(LocationManager.GPS_PROVIDER)
+                } catch (e: IllegalArgumentException) {
+                }
             }
         } catch (e: SecurityException) {
             e.printStackTrace()

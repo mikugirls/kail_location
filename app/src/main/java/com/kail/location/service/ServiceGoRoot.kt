@@ -687,11 +687,15 @@ class ServiceGoRoot : Service() {
 
 
     private fun getOffsetsFromSystem(): Pair<String, String> {
-        val commands = listOf("toybox readelf", "readelf")
+        val commands = listOf("toybox readelf", "readelf", "/system/bin/toybox readelf")
         
         for (cmd in commands) {
             try {
                 KailLog.i(this, "ServiceGoRoot", ">>> Trying command: $cmd")
+                val testCmd = com.kail.location.utils.ShellUtils.executeCommand("$cmd 2>&1")
+                if (testCmd.contains("not found") || testCmd.isEmpty() && !cmd.startsWith("/")) {
+                    continue
+                }
                 val sensorOut = com.kail.location.utils.ShellUtils.executeCommand("$cmd -Ws /system/lib64/libsensor.so 2>/dev/null | grep _ZN7android7BitTube11sendObjects")
                 val sensorServiceOut = com.kail.location.utils.ShellUtils.executeCommand("$cmd -Ws /system/lib64/libsensorservice.so 2>/dev/null | grep '_ZN7android8hardware7sensors14implementation20convertToSensorEvent[^4V1]'")
                 val sensorServiceV1Out = com.kail.location.utils.ShellUtils.executeCommand("$cmd -Ws /system/lib64/libsensorservice.so 2>/dev/null | grep '_ZN7android8hardware7sensors4V1_014implementation20convertToSensorEvent'")
@@ -723,8 +727,8 @@ class ServiceGoRoot : Service() {
             }
         }
         
-        KailLog.e(this, "ServiceGoRoot", ">>> readelf not available")
-        throw Exception("Failed to get offsets: readelf not available")
+        KailLog.w(this, "ServiceGoRoot", ">>> readelf not available, skipping sensor offset detection")
+        return Pair("0x0", "0x0")
     }
 
     private fun portalSend(commandId: String, block: Bundle.() -> Unit = {}): Boolean {

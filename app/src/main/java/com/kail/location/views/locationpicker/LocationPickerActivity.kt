@@ -7,6 +7,7 @@ import com.kail.location.views.routesimulation.RouteSimulationActivity
 
 import android.Manifest
 import android.app.DownloadManager
+import android.content.pm.PackageManager
 import android.content.*
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
@@ -641,6 +642,15 @@ class LocationPickerActivity : BaseActivity(), SensorEventListener {
     private fun doGoLocation() {
         KailLog.i(this, "LocationPickerActivity", "doGoLocation called")
         val runMode = viewModel.runMode.value
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 1001)
+                GoUtils.DisplayToast(this, "需要位置权限才能启动服务")
+                return
+            }
+        }
+
         if (runMode != LocationPickerViewModel.RUN_MODE_ROOT) {
             if (!GoUtils.isAllowMockLocation(this)) {
                 KailLog.i(this, "LocationPickerActivity", "Mock location permission NOT granted")

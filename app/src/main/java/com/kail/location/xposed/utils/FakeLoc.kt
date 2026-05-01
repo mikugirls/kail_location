@@ -32,7 +32,7 @@ object FakeLoc {
      * 模拟Gnss卫星数据开关
      */
     @Volatile
-    var enableMockGnss = false
+    var enableMockGnss = true
 
     /**
      * 模拟WLAN数据

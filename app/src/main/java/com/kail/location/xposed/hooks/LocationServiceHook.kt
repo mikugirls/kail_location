@@ -22,8 +22,11 @@ import com.kail.location.xposed.utils.afterHook
 import com.kail.location.xposed.utils.beforeHook
 import com.kail.location.xposed.utils.hookAllMethods
 import com.kail.location.xposed.utils.onceHookAllMethod
+import android.os.Handler
+import android.os.HandlerThread
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
+import java.util.Collections
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.random.Random
@@ -147,6 +150,164 @@ data class MockGnssData(
     val azimuths: FloatArray,
     val carrierFreqs: FloatArray
 )
+
+private fun buildMockGnssData(): MockGnssData {
+    val svCount = Random.nextInt(FakeLoc.minSatellites, MAX_SATELLITES + 1)
+    val svidWithFlags = IntArray(svCount)
+    val cn0s = FloatArray(svCount)
+    val elevations = FloatArray(svCount)
+    val azimuths = FloatArray(svCount)
+    val carrierFreqs = FloatArray(svCount)
+
+    val selectedSatellites = satelliteList.shuffled().take(svCount)
+
+    selectedSatellites.forEachIndexed { index, sat ->
+        val hasEphemeris = Random.nextFloat() > 0.1f
+        val hasAlmanac = Random.nextFloat() > 0.05f
+        val usedInFix = Random.nextFloat() > 0.3f
+        val hasCarrierFreq = true
+        val hasBasebandCn0 = true
+
+        var flags = GnssFlags.SVID_FLAGS_NONE
+        if (hasEphemeris) flags = flags or GnssFlags.SVID_FLAGS_HAS_EPHEMERIS_DATA
+        if (hasAlmanac) flags = flags or GnssFlags.SVID_FLAGS_HAS_ALMANAC_DATA
+        if (usedInFix) flags = flags or GnssFlags.SVID_FLAGS_USED_IN_FIX
+        if (hasCarrierFreq) flags = flags or GnssFlags.SVID_FLAGS_HAS_CARRIER_FREQUENCY
+        if (hasBasebandCn0) flags = flags or GnssFlags.SVID_FLAGS_HAS_BASEBAND_CN0
+
+        svidWithFlags[index] = (sat.prn shl GnssFlags.SVID_SHIFT_WIDTH) or
+                ((GnssFlags.CONSTELLATION_BEIDOU and GnssFlags.CONSTELLATION_TYPE_MASK) shl GnssFlags.CONSTELLATION_TYPE_SHIFT_WIDTH) or
+                flags
+
+        cn0s[index] = when (sat.type) {
+            is OrbitType.GEO -> Random.nextFloat(GEO_MIN_CN0, GEO_MAX_CN0)
+            is OrbitType.IGSO -> Random.nextFloat(IGSO_MIN_CN0, IGSO_MAX_CN0)
+            is OrbitType.MEO -> Random.nextFloat(MEO_MIN_CN0, MEO_MAX_CN0)
+        }
+        elevations[index] = Random.nextFloat(sat.type.elevationRange.start, sat.type.elevationRange.endInclusive)
+        azimuths[index] = Random.nextFloat(0f, 360f)
+        carrierFreqs[index] = when (Random.nextInt(3)) {
+            0 -> BDS_B1I_FREQ
+            1 -> BDS_B2I_FREQ
+            else -> BDS_B3I_FREQ
+        }
+    }
+
+    return MockGnssData(
+        svCount = svCount,
+        svidWithFlags = svidWithFlags,
+        cn0s = cn0s,
+        elevations = elevations,
+        azimuths = azimuths,
+        carrierFreqs = carrierFreqs
+    )
+}
+
+private fun buildGnssStatusObject(mockGps: MockGnssData): Any? {
+    return runCatching {
+        val cGnssStatus = Class.forName("android.location.GnssStatus")
+        val constructor = cGnssStatus.declaredConstructors.firstOrNull { ctor ->
+            when (ctor.parameterTypes.size) {
+                5, 6, 7, 8 -> {
+                    ctor.parameterTypes.getOrNull(0) == Int::class.javaPrimitiveType &&
+                    ctor.parameterTypes.getOrNull(1) == IntArray::class.java &&
+                    ctor.parameterTypes.getOrNull(2) == FloatArray::class.java &&
+                    ctor.parameterTypes.getOrNull(3) == FloatArray::class.java &&
+                    ctor.parameterTypes.getOrNull(4) == FloatArray::class.java
+                }
+                else -> false
+            }
+        }?.also { it.isAccessible = true }
+
+        if (constructor == null) {
+            KailLog.e(null, "Kail_Xposed", "GnssStatus constructor not found")
+            return null
+        }
+
+        val args = mutableListOf<Any>()
+        args.add(mockGps.svCount)
+        args.add(mockGps.svidWithFlags)
+        args.add(mockGps.cn0s)
+        args.add(mockGps.elevations)
+        args.add(mockGps.azimuths)
+
+        when (constructor.parameterTypes.size) {
+            6 -> args.add(mockGps.carrierFreqs)
+            7 -> {
+                args.add(mockGps.carrierFreqs)
+                args.add(FloatArray(mockGps.svCount) { mockGps.cn0s[it] - Random.nextFloat(2f, 5f) })
+            }
+            8 -> {
+                args.add(mockGps.carrierFreqs)
+                args.add(FloatArray(mockGps.svCount) { mockGps.cn0s[it] - Random.nextFloat(2f, 5f) })
+                args.add(FloatArray(mockGps.svCount))
+            }
+        }
+
+        constructor.newInstance(*args.toTypedArray())
+    }.onFailure {
+        KailLog.e(null, "Kail_Xposed", "buildGnssStatusObject failed: ${it.message}")
+    }.getOrNull()
+}
+
+private fun pushMockGnssToListener(listener: Any) {
+    val mockGps = buildMockGnssData()
+    val methods = listener.javaClass.declaredMethods.filter { it.name == "onSvStatusChanged" }
+
+    for (m in methods) {
+        m.isAccessible = true
+        when (m.parameterTypes.size) {
+            5 -> m.invoke(listener, mockGps.svCount, mockGps.svidWithFlags, mockGps.cn0s, mockGps.elevations, mockGps.azimuths)
+            6 -> m.invoke(listener, mockGps.svCount, mockGps.svidWithFlags, mockGps.cn0s, mockGps.elevations, mockGps.azimuths, mockGps.carrierFreqs)
+            7 -> {
+                val basebandCn0s = FloatArray(mockGps.svCount) { mockGps.cn0s[it] - Random.nextFloat(2f, 5f) }
+                m.invoke(listener, mockGps.svCount, mockGps.svidWithFlags, mockGps.cn0s, mockGps.elevations, mockGps.azimuths, mockGps.carrierFreqs, basebandCn0s)
+            }
+            1 -> {
+                val gnssStatus = buildGnssStatusObject(mockGps)
+                if (gnssStatus != null) {
+                    m.invoke(listener, gnssStatus)
+                }
+            }
+            else -> continue
+        }
+        if (FakeLoc.enableDebugLog) {
+            KailLog.d(null, "Kail_Xposed", "Pushed GNSS status to ${listener.javaClass.name} via ${m.name}(${m.parameterTypes.size} args)")
+        }
+        break
+    }
+}
+
+private val activeGnssListeners = Collections.synchronizedSet(HashSet<Any>())
+private var gnssPushStarted = false
+
+private val gnssPushHandler: Handler by lazy {
+    val thread = HandlerThread("KailGnssPusher").apply { start() }
+    Handler(thread.looper)
+}
+
+private val gnssPushRunnable = object : Runnable {
+    override fun run() {
+        if (!FakeLoc.enable || !FakeLoc.enableMockGnss) {
+            gnssPushHandler.postDelayed(this, 1000)
+            return
+        }
+
+        val listeners = activeGnssListeners.toList()
+        for (listener in listeners) {
+            runCatching {
+                pushMockGnssToListener(listener)
+            }.onFailure {
+                activeGnssListeners.remove(listener)
+                if (FakeLoc.enableDebugLog) {
+                    KailLog.d(null, "Kail_Xposed", "Removed dead GNSS listener: ${it.message}")
+                }
+            }
+        }
+
+        gnssPushHandler.postDelayed(this, 1000)
+    }
+}
 
 internal object LocationServiceHook: BaseLocationHook() {
     val locationListeners = LinkedBlockingQueue<Pair<String, IInterface>>()
@@ -439,82 +600,30 @@ internal object LocationServiceHook: BaseLocationHook() {
                     val cIGnssStatusListener = callback.javaClass
 
                     if(FakeLoc.enableDebugLog) {
-                        KailLog.d(null, "Kail_Xposed", "registerGnssStatusCallback: injected!")
+                        KailLog.d(null, "Kail_Xposed", "registerGnssStatusCallback: injected! listener=${callback.javaClass.name}")
                     }
+
                     if (!FakeLoc.enableMockGnss) {
                         return
                     }
 
+                    // 保存 listener 用于主动推送
+                    activeGnssListeners.add(callback)
+                    if (!gnssPushStarted) {
+                        gnssPushStarted = true
+                        gnssPushHandler.post(gnssPushRunnable)
+                        if (FakeLoc.enableDebugLog) {
+                            KailLog.d(null, "Kail_Xposed", "Started active GNSS push")
+                        }
+                    }
+
                     if (cIGnssStatusListener.onceHookAllMethod("onSvStatusChanged", beforeHook {
-                        // android 7.0.0
-                        // void onSvStatusChanged(int svCount, in int[] svidWithFlags, in float[] cn0s,
-                        //            in float[] elevations, in float[] azimuths);
-                        // android 8.0.0
-                        // void onSvStatusChanged(int svCount, in int[] svidWithFlags, in float[] cn0s,
-                        //            in float[] elevations, in float[] azimuths,
-                        //            in float[] carrierFreqs);
-                        // android 11
-                        //  void onSvStatusChanged(int svCount, in int[] svidWithFlags, in float[] cn0s,
-                        //            in float[] elevations, in float[] azimuths,
-                        //            in float[] carrierFreqs, in float[] basebandCn0s);
-                        // android 12 ~ 15
-                        // void onSvStatusChanged(in GnssStatus gnssStatus);
-
-                        // https://www.csno-tarc.cn/system/constellation
-
                         if (!FakeLoc.enableMockGnss) return@beforeHook
 
-                        val svCount = Random.nextInt(FakeLoc.minSatellites, MAX_SATELLITES + 1)
-                        val mockGps = MockGnssData(
-                            svCount = svCount,
-                            svidWithFlags = IntArray(svCount),
-                            cn0s = FloatArray(svCount),
-                            elevations = FloatArray(svCount),
-                            azimuths = FloatArray(svCount),
-                            carrierFreqs = FloatArray(svCount)
-                        ).apply {
-                            val selectedSatellites = satelliteList.shuffled().take(svCount)
-
-                            selectedSatellites.forEachIndexed { index, sat ->
-                                svidWithFlags[index] = 0
-
-                                val hasEphemeris = Random.nextFloat() > 0.1f    // 90%概率有星历
-                                val hasAlmanac = Random.nextFloat() > 0.05f     // 95%概率有年历
-                                val usedInFix = Random.nextFloat() > 0.3f       // 70%概率用于定位
-                                val hasCarrierFreq = true                       // 总是有载波频率
-                                val hasBasebandCn0 = true                       // 总是有基带载噪比
-
-                                var flags = GnssFlags.SVID_FLAGS_NONE
-
-                                // 设置基本标志位
-                                if (hasEphemeris) flags = flags or GnssFlags.SVID_FLAGS_HAS_EPHEMERIS_DATA
-                                if (hasAlmanac) flags = flags or GnssFlags.SVID_FLAGS_HAS_ALMANAC_DATA
-                                if (usedInFix) flags = flags or GnssFlags.SVID_FLAGS_USED_IN_FIX
-                                if (hasCarrierFreq) flags = flags or GnssFlags.SVID_FLAGS_HAS_CARRIER_FREQUENCY
-                                if (hasBasebandCn0) flags = flags or GnssFlags.SVID_FLAGS_HAS_BASEBAND_CN0
-
-                                // 组合SVID、星座类型和标志位
-                                svidWithFlags[index] = (sat.prn shl GnssFlags.SVID_SHIFT_WIDTH) or
-                                        ((GnssFlags.CONSTELLATION_BEIDOU and GnssFlags.CONSTELLATION_TYPE_MASK) shl GnssFlags.CONSTELLATION_TYPE_SHIFT_WIDTH) or
-                                        flags
-
-                                cn0s[index] = when (sat.type) {
-                                    is OrbitType.GEO -> Random.nextFloat(GEO_MIN_CN0, GEO_MAX_CN0)
-                                    is OrbitType.IGSO -> Random.nextFloat(IGSO_MIN_CN0, IGSO_MAX_CN0)
-                                    is OrbitType.MEO -> Random.nextFloat(MEO_MIN_CN0, MEO_MAX_CN0)
-                                }
-                                elevations[index] = Random.nextFloat(sat.type.elevationRange.start, sat.type.elevationRange.endInclusive)
-                                azimuths[index] = Random.nextFloat(0f, 360f)
-                                carrierFreqs[index] = when (Random.nextInt(3)) {
-                                    0 -> BDS_B1I_FREQ
-                                    1 -> BDS_B2I_FREQ
-                                    else -> BDS_B3I_FREQ
-                                }
-                            }
-                        }
+                        val mockGps = buildMockGnssData()
 
                         if (args[0] is Int) {
-                            args[0] = svCount
+                            args[0] = mockGps.svCount
                             args[1] = mockGps.svidWithFlags
                             args[2] = mockGps.cn0s
                             args[3] = mockGps.elevations
@@ -522,9 +631,8 @@ internal object LocationServiceHook: BaseLocationHook() {
                             if (args.size > 5) {
                                 args[5] = mockGps.carrierFreqs
                             }
-
                             if (args.size > 6) {
-                                args[6] = FloatArray(svCount) {
+                                args[6] = FloatArray(mockGps.svCount) {
                                     mockGps.cn0s[it] - Random.nextFloat(2f, 5f)
                                 }
                             }
@@ -532,30 +640,9 @@ internal object LocationServiceHook: BaseLocationHook() {
                         }
 
                         if (args[0] != null && args[0].javaClass.name == "android.location.GnssStatus") {
-                            runCatching {
-                                val mConstructor = args[0].javaClass.declaredConstructors.firstOrNull {
-                                    it.parameterTypes.size == 7
-                                }.also {
-                                    it?.isAccessible = true
-                                }
-
-                                if (mConstructor != null) {
-                                    args[0] = mConstructor.newInstance(
-                                        svCount,
-                                        mockGps.svidWithFlags,
-                                        mockGps.cn0s,
-                                        mockGps.elevations,
-                                        mockGps.azimuths,
-                                        mockGps.carrierFreqs,
-                                        FloatArray(svCount) {
-                                            mockGps.cn0s[it] - Random.nextFloat(2f, 5f)
-                                        }
-                                    )
-                                } else {
-                                    KailLog.e(null, "Kail_Xposed", "onSvStatusChanged: unsupported version: ${method}, constructor not found")
-                                }
-                            }.onFailure {
-                                KailLog.e(null, "Kail_Xposed", "onSvStatusChanged: constructor failed: ${it.message}")
+                            val gnssStatus = buildGnssStatusObject(mockGps)
+                            if (gnssStatus != null) {
+                                args[0] = gnssStatus
                             }
                             return@beforeHook
                         }
@@ -575,6 +662,16 @@ internal object LocationServiceHook: BaseLocationHook() {
             }).isEmpty()) {
             KailLog.e(null, "Kail_Xposed", "hook registerGnssStatusCallback failed")
         }
+
+        cILocationManager.hookAllMethods("unregisterGnssStatusCallback", beforeHook {
+            if (FakeLoc.enableMockGnss && args.isNotEmpty() && args[0] != null) {
+                activeGnssListeners.remove(args[0])
+                if (FakeLoc.enableDebugLog) {
+                    KailLog.d(null, "Kail_Xposed", "unregisterGnssStatusCallback: removed listener")
+                }
+            }
+        })
+
         // android 11+
         // @EnforcePermission("LOCATION_HARDWARE")
         // void startGnssBatch(long periodNanos, in ILocationListener listener, String packageName, @nullable String attributionTag, String listenerId);

@@ -1,4 +1,4 @@
-package com.kail.location.xposed.location
+package com.kail.location.xposed.core
 
 import android.location.Location
 import android.location.LocationManager
@@ -15,12 +15,19 @@ internal object FakeLocState {
     private val speedRef = AtomicReference(0f)
     private val bearingRef = AtomicReference(0f)
     private val altitudeRef = AtomicReference(0.0)
+    private val accuracyRef = AtomicReference(25.0f)
     private val stepEnabledRef = AtomicReference(false)
     private val stepCadenceSpmRef = AtomicReference(120f)
     private val gaitModeRef = AtomicReference(0)
     private var nativeLibraryLoaded = false
 
     fun isEnabled(): Boolean = enabledRef.get()
+
+    fun getAltitude(): Double = altitudeRef.get()
+
+    fun getSpeed(): Float = speedRef.get()
+
+    fun getBearing(): Float = bearingRef.get()
 
     fun setEnabled(enabled: Boolean) {
         enabledRef.set(enabled)
@@ -36,6 +43,12 @@ internal object FakeLocState {
 
     fun setAltitude(altitude: Double) {
         altitudeRef.set(altitude)
+    }
+
+    fun getAccuracy(): Float = accuracyRef.get()
+
+    fun setAccuracy(accuracy: Float) {
+        accuracyRef.set(accuracy)
     }
 
     fun setStepEnabled(enabled: Boolean) {

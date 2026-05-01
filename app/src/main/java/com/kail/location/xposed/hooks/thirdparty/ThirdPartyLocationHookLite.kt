@@ -1,4 +1,4 @@
-package com.kail.location.xposed.location
+package com.kail.location.xposed.hooks.thirdparty
 
 import android.location.Location
 import android.location.LocationListener
@@ -7,6 +7,7 @@ import com.kail.location.utils.KailLog
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
+import com.kail.location.xposed.core.FakeLocState
 import java.lang.reflect.Modifier
 
 internal object ThirdPartyLocationHookLite {

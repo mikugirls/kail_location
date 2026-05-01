@@ -1,7 +1,8 @@
-package com.kail.location.xposed.location
+package com.kail.location.xposed.core
 
 import android.os.Bundle
 import com.kail.location.utils.KailLog
+import com.kail.location.xposed.hooks.LocationServiceHook
 import kotlin.random.Random
 
 internal object KailCommandHandler {
@@ -57,13 +58,14 @@ internal object KailCommandHandler {
                 return false
             }
             "get_listener_size" -> {
-                out.putInt("size", LocationServiceHookLite.listenerCount())
-                KailLog.d(null, "XPOSED", "PORTAL接收：监听器数量 size=${LocationServiceHookLite.listenerCount()}", isHighFrequency = true)
+                out.putInt("size", LocationServiceHook.locationListeners.size)
+                KailLog.d(null, "XPOSED", "PORTAL接收：监听器数量 size=${LocationServiceHook.locationListeners.size}", isHighFrequency = true)
                 return true
             }
             "broadcast_location" -> {
-                out.putBoolean("ok", LocationServiceHookLite.broadcastCurrentLocation())
-                KailLog.d(null, "XPOSED", "PORTAL接收：广播当前位置 ok=${out.getBoolean("ok", false)}", isHighFrequency = true)
+                LocationServiceHook.callOnLocationChanged()
+                out.putBoolean("ok", true)
+                KailLog.d(null, "XPOSED", "PORTAL接收：广播当前位置", isHighFrequency = true)
                 return true
             }
             "set_speed" -> {

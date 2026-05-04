@@ -22,7 +22,8 @@ local.properties
 .idea/
 .vs/
 *.iml
-
+# Release output
+/app/release/
 # Build outputs
 app/build/
 app/.cxx/

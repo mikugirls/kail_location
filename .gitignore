@@ -29,8 +29,7 @@ app/build/
 app/.cxx/
 app/.externalNativeBuild/
 
-gradlew
-gradlew.bat
+
 
 # Keystore
 *.jks

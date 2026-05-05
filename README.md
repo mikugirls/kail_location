@@ -1,5 +1,8 @@
 路线模拟，位置模拟，导航模拟，步频模拟，虚拟定位，nfc模拟
 
+
+[app下载：](https://play.google.com/store/apps/details?id=com.kail.location)
+
 [传感器参数](传感器参数.md)
 日志在/storage/emulated/0/Documents/KailLocation/logs/
 

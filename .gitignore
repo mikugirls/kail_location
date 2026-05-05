@@ -30,7 +30,7 @@ app/.cxx/
 app/.externalNativeBuild/
 
 
-
+docs/
 # Keystore
 *.jks
 *.keystore

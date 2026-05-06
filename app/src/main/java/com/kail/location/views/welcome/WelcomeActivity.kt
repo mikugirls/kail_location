@@ -34,6 +34,8 @@ import androidx.compose.runtime.LaunchedEffect
  * 1. 检查并请求必要的权限（定位、存储、电话状态）
  * 2. 展示用户协议与隐私政策，并处理用户的同意状态
  * 3. 检查 GPS 与网络状态，通过后跳转至主页面
+ * 
+ * 注意：该页面仅在首次安装后第一次打开时显示，后续直接进入主界面
  */
 class WelcomeActivity : AppCompatActivity() {
     private lateinit var preferences: SharedPreferences
@@ -45,6 +47,8 @@ class WelcomeActivity : AppCompatActivity() {
         private const val KEY_ACCEPT_AGREEMENT = "KEY_ACCEPT_AGREEMENT"
         private const val KEY_ACCEPT_PRIVACY = "KEY_ACCEPT_PRIVACY"
         private const val SDK_PERMISSION_REQUEST = 127
+        // 新增：记录首次启动是否已完成
+        private const val KEY_FIRST_LAUNCH_DONE = "KEY_FIRST_LAUNCH_DONE"
     }
 
     private var isPermission = false
@@ -52,7 +56,8 @@ class WelcomeActivity : AppCompatActivity() {
 
     /**
      * 活动创建回调
-     * 初始化 SharedPreferences，设置默认偏好值，并加载 Compose UI。
+     * 初始化 SharedPreferences，判断是否为首次启动。
+     * 若非首次启动则直接跳转至主界面；否则加载 Compose UI。
      *
      * @param savedInstanceState Activity 的状态保存对象
      */
@@ -66,6 +71,17 @@ class WelcomeActivity : AppCompatActivity() {
         mPrivacy = preferences.getBoolean(KEY_ACCEPT_PRIVACY, false)
         mAgreement = preferences.getBoolean(KEY_ACCEPT_AGREEMENT, false)
 
+        // 检查是否已经完成首次启动流程（即已经成功进入过主界面）
+        val firstLaunchDone = preferences.getBoolean(KEY_FIRST_LAUNCH_DONE, false)
+        if (firstLaunchDone) {
+            // 直接跳转主页面，不再显示欢迎 UI
+            val intent = Intent(this, LocationSimulationActivity::class.java)
+            startActivity(intent)
+            finish()
+            return
+        }
+
+        // 以下为首次启动时的 UI 逻辑
         setContent {
             locationTheme {
                 var isChecked by remember { mutableStateOf(mPrivacy && mAgreement) }
@@ -271,7 +287,7 @@ class WelcomeActivity : AppCompatActivity() {
      * 2. 网络是否可用
      * 3. GPS 是否开启
      * 4. 权限是否完备
-     * 若所有检查通过，则跳转到 LocationSimulationActivity 并关闭当前页面。
+     * 若所有检查通过，则标记首次启动已完成，跳转到 LocationSimulationActivity 并关闭当前页面。
      *
      * @param isChecked 是否已勾选同意协议
      */
@@ -298,6 +314,10 @@ class WelcomeActivity : AppCompatActivity() {
 
         if (isPermission) {
             hasStartedMainActivity = true
+
+            // 保存首次启动完成的标志，后续打开不再显示欢迎页
+            preferences.edit().putBoolean(KEY_FIRST_LAUNCH_DONE, true).apply()
+
             val intent = Intent(this@WelcomeActivity, LocationSimulationActivity::class.java)
             startActivity(intent)
             this@WelcomeActivity.finish()

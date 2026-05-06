@@ -101,7 +101,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _logEnabled = MutableStateFlow(prefs.getBoolean(KEY_LOG_ENABLED, false))
     val logEnabled: StateFlow<Boolean> = _logEnabled.asStateFlow()
 
-    private val _historyExpiration = MutableStateFlow(prefs.getString(KEY_HISTORY_EXPIRATION, "7.0") ?: "7.0")
+    private val _historyExpiration = MutableStateFlow(prefs.getString(KEY_HISTORY_EXPIRATION, "9999.0") ?: "9999.0")
     val historyExpiration: StateFlow<String> = _historyExpiration.asStateFlow()
 
     private val _mapZoom = MutableStateFlow(prefs.getString(KEY_MAP_ZOOM, "17") ?: "17")
@@ -181,7 +181,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             KEY_LON_OFFSET -> _lonOffset.value = sharedPreferences.getString(key, "10.0") ?: "10.0"
             KEY_RANDOM_OFFSET -> _randomOffset.value = sharedPreferences.getBoolean(key, false)
             KEY_LOG_ENABLED -> _logEnabled.value = sharedPreferences.getBoolean(key, false)
-            KEY_HISTORY_EXPIRATION -> _historyExpiration.value = sharedPreferences.getString(key, "7.0") ?: "7.0"
+            KEY_HISTORY_EXPIRATION -> _historyExpiration.value = sharedPreferences.getString(key, "9999.0") ?: "9999.0"
             KEY_MAP_ZOOM -> _mapZoom.value = sharedPreferences.getString(key, "17") ?: "17"
             KEY_GPS_SATELLITE_SIM -> _gpsSatelliteSim.value = sharedPreferences.getBoolean(key, true)
             // 新增

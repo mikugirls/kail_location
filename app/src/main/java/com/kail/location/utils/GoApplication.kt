@@ -1,29 +1,27 @@
 package com.kail.location.utils
 
-import android.app.Activity
 import android.app.Application
-import android.os.Bundle
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.ProcessLifecycleOwner
 import com.baidu.location.LocationClient
 import com.baidu.mapapi.CoordType
 import com.baidu.mapapi.SDKInitializer
+import com.kail.location.utils.KailLog
 import androidx.preference.PreferenceManager
-import com.google.android.gms.ads.MobileAds
-import com.google.firebase.FirebaseApp
 
-class GoApplication : Application(), Application.ActivityLifecycleCallbacks {
-
+/**
+ * 自定义 Application，负责应用级初始化。
+ * 包含崩溃日志写入以及百度地图/定位 SDK 的设置。
+ */
+class GoApplication : Application() {
     companion object {
         const val APP_NAME = "KailLocation"
         private const val KEY_BAIDU_MAP_KEY = "setting_baidu_map_key"
-        private const val APP_OPEN_AD_UNIT_ID = "ca-app-pub-3992562752831504/6733908854"
     }
 
-    private val appOpenAdManager = AppOpenAdManager(APP_OPEN_AD_UNIT_ID)
-    private var currentActivity: Activity? = null
-
+    /**
+     * 将崩溃信息写入文件。
+     *
+     * @param ex 抛出的异常对象。
+     */
     private fun writeCrashToFile(ex: Throwable) {
         try {
             val logPath = getExternalFilesDir("Logs") ?: return
@@ -39,24 +37,17 @@ class GoApplication : Application(), Application.ActivityLifecycleCallbacks {
 
     private var mDefaultHandler: Thread.UncaughtExceptionHandler? = null
 
+    /**
+     * 应用启动回调。
+     * 初始化崩溃处理、XLog 以及百度地图/定位 SDK。
+     */
     override fun onCreate() {
         super.onCreate()
 
-        registerActivityLifecycleCallbacks(this)
-        ProcessLifecycleOwner.get().lifecycle.addObserver(LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_START) {
-                currentActivity?.let {
-                    appOpenAdManager.showAdIfAvailable(it)
-                }
-            }
-        })
-
-        FirebaseApp.initializeApp(this)
-        MobileAds.initialize(this)
-
+        // 先检查日志开关状态并强制输出
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         val logEnabled = prefs.getBoolean("setting_log_enabled", false)
-        android.util.Log.d("GoApplication", "Log enabled: $logEnabled")
+        android.util.Log.d("GoApplication", "日志开关状态: $logEnabled")
 
         mDefaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
@@ -65,33 +56,25 @@ class GoApplication : Application(), Application.ActivityLifecycleCallbacks {
             mDefaultHandler?.uncaughtException(thread, throwable)
         }
 
+        // 百度地图 7.5 开始，要求必须同意隐私政策，默认为false
         SDKInitializer.setAgreePrivacy(this, true)
+        // 百度定位 7.5 开始，要求必须同意隐私政策，默认为false(官方说可以统一为以上接口，但实际测试并不行，定位还是需要单独设置)
         LocationClient.setAgreePrivacy(true)
 
         try {
+            // 读取自定义 Key
+            val prefs = PreferenceManager.getDefaultSharedPreferences(this)
             val customKey = prefs.getString(KEY_BAIDU_MAP_KEY, "")
             if (!customKey.isNullOrEmpty()) {
                 SDKInitializer.setApiKey(customKey)
                 LocationClient.setKey(customKey)
             }
+
+            // 在使用 SDK 各组间之前初始化 context 信息，传入 ApplicationContext
             SDKInitializer.initialize(this)
             SDKInitializer.setCoordType(CoordType.BD09LL)
         } catch (e: Throwable) {
             KailLog.e(this, APP_NAME, "Baidu Map SDK init failed: ${e.message}")
         }
     }
-
-    override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
-    override fun onActivityStarted(activity: Activity) {
-        if (!appOpenAdManager.isShowingAd) {
-            currentActivity = activity
-        }
-    }
-    override fun onActivityResumed(activity: Activity) {}
-    override fun onActivityPaused(activity: Activity) {}
-    override fun onActivityStopped(activity: Activity) {
-        appOpenAdManager.loadAd(activity)
-    }
-    override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
-    override fun onActivityDestroyed(activity: Activity) {}
 }

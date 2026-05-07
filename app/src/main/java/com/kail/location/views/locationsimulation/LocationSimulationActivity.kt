@@ -187,15 +187,15 @@ class LocationSimulationActivity : BaseActivity() {
     private fun showGpsSettingsDialog() {
         android.app.AlertDialog.Builder(this)
             .setTitle(R.string.app_name)
-            .setMessage("位置模拟功能需要开启 GPS 定位。\n请点击“去设置”开启位置服务。")
-            .setPositiveButton("去设置") { _, _ ->
+            .setMessage(getString(R.string.app_error_permission))
+            .setPositiveButton(getString(R.string.goutils_settings)) { _, _ ->
                 try {
                     startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
                 } catch (e: Exception) {
                     Toast.makeText(this, "无法打开定位设置，请手动开启", Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(getString(R.string.common_cancel), null)
             .show()
     }
 

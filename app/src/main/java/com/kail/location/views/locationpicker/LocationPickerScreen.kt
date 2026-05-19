@@ -49,6 +49,8 @@ fun LocationPickerScreen(
     currentCity: String?,
     runMode: String,
     onRunModeChange: (String) -> Unit,
+    onDeveloperModeSelected: () -> Unit = {},
+    onXposedSettingsSelected: () -> Unit = {},
     onToggleMock: () -> Unit,
     onZoomIn: () -> Unit,
     onZoomOut: () -> Unit,
@@ -98,7 +100,9 @@ fun LocationPickerScreen(
                 onNavigate = onNavigate,
                 appVersion = appVersion,
                 runMode = runMode,
-                onRunModeChange = onRunModeChange
+                onRunModeChange = onRunModeChange,
+                onDeveloperModeSelected = onDeveloperModeSelected,
+                onXposedSettingsSelected = onXposedSettingsSelected
             )
         }
     ) {

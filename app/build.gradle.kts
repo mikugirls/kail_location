@@ -52,6 +52,7 @@ android {
         viewBinding = true
         buildConfig = true
         prefab = true
+        aidl = true
     }
 
     packaging {
@@ -63,6 +64,125 @@ android {
     sourceSets {
         getByName("main") {
             jniLibs.srcDirs("libs")
+        }
+    }
+}
+
+// Copy kail_inject executable from CMake build output into merged native libs,
+// renaming to .so suffix so AGP packages it into APK lib/<abi>/libkail_inject.so
+tasks.whenTaskAdded {
+    if (name == "mergeDebugNativeLibs") {
+        doFirst {
+            val cmakeDebugDir = file("${buildDir}/intermediates/cxx/Debug")
+            if (cmakeDebugDir.exists()) {
+                cmakeDebugDir.listFiles()?.forEach { hashDir ->
+                    if (hashDir.isDirectory) {
+                        val arm64Exe = file("${hashDir.absolutePath}/obj/arm64-v8a/kail_inject")
+                        if (arm64Exe.exists()) {
+                            copy {
+                                from(arm64Exe)
+                                into("${buildDir}/intermediates/merged_native_libs/debug/out/lib/arm64-v8a/")
+                                rename { "libkail_inject.so" }
+                            }
+                        }
+                        val armExe = file("${hashDir.absolutePath}/obj/armeabi-v7a/kail_inject")
+                        if (armExe.exists()) {
+                            copy {
+                                from(armExe)
+                                into("${buildDir}/intermediates/merged_native_libs/debug/out/lib/armeabi-v7a/")
+                                rename { "libkail_inject.so" }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (name == "mergeReleaseNativeLibs") {
+        doFirst {
+            val cmakeReleaseDir = file("${buildDir}/intermediates/cxx/RelWithDebInfo")
+            if (!cmakeReleaseDir.exists()) {
+                val altDir = file("${buildDir}/intermediates/cxx/Release")
+                if (altDir.exists()) {
+                    altDir.listFiles()?.forEach { hashDir ->
+                        if (hashDir.isDirectory) {
+                            val arm64Exe = file("${hashDir.absolutePath}/obj/arm64-v8a/kail_inject")
+                            if (arm64Exe.exists()) {
+                                copy {
+                                    from(arm64Exe)
+                                    into("${buildDir}/intermediates/merged_native_libs/release/out/lib/arm64-v8a/")
+                                    rename { "libkail_inject.so" }
+                                }
+                            }
+                            val armExe = file("${hashDir.absolutePath}/obj/armeabi-v7a/kail_inject")
+                            if (armExe.exists()) {
+                                copy {
+                                    from(armExe)
+                                    into("${buildDir}/intermediates/merged_native_libs/release/out/lib/armeabi-v7a/")
+                                    rename { "libkail_inject.so" }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                cmakeReleaseDir.listFiles()?.forEach { hashDir ->
+                    if (hashDir.isDirectory) {
+                        val arm64Exe = file("${hashDir.absolutePath}/obj/arm64-v8a/kail_inject")
+                        if (arm64Exe.exists()) {
+                            copy {
+                                from(arm64Exe)
+                                into("${buildDir}/intermediates/merged_native_libs/release/out/lib/arm64-v8a/")
+                                rename { "libkail_inject.so" }
+                            }
+                        }
+                        val armExe = file("${hashDir.absolutePath}/obj/armeabi-v7a/kail_inject")
+                        if (armExe.exists()) {
+                            copy {
+                                from(armExe)
+                                into("${buildDir}/intermediates/merged_native_libs/release/out/lib/armeabi-v7a/")
+                                rename { "libkail_inject.so" }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (name == "stripDebugDebugSymbols") {
+        doLast {
+            val mergedDir = file("${buildDir}/intermediates/merged_native_libs/debug/out/lib")
+            val strippedDir = file("${buildDir}/intermediates/stripped_native_libs/debug/stripDebugDebugSymbols/out/lib")
+            if (mergedDir.exists() && strippedDir.exists()) {
+                listOf("arm64-v8a", "armeabi-v7a").forEach { abi ->
+                    val src = file("${mergedDir.absolutePath}/$abi/libkail_inject.so")
+                    val dst = file("${strippedDir.absolutePath}/$abi/libkail_inject.so")
+                    if (src.exists() && !dst.exists()) {
+                        copy {
+                            from(src)
+                            into("${strippedDir.absolutePath}/$abi/")
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (name == "stripReleaseDebugSymbols") {
+        doLast {
+            val mergedDir = file("${buildDir}/intermediates/merged_native_libs/release/out/lib")
+            val strippedDir = file("${buildDir}/intermediates/stripped_native_libs/release/stripReleaseDebugSymbols/out/lib")
+            if (mergedDir.exists() && strippedDir.exists()) {
+                listOf("arm64-v8a", "armeabi-v7a").forEach { abi ->
+                    val src = file("${mergedDir.absolutePath}/$abi/libkail_inject.so")
+                    val dst = file("${strippedDir.absolutePath}/$abi/libkail_inject.so")
+                    if (src.exists() && !dst.exists()) {
+                        copy {
+                            from(src)
+                            into("${strippedDir.absolutePath}/$abi/")
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -89,8 +209,6 @@ dependencies {
     // Dobby
     implementation("io.github.vvb2060.ndk:dobby:1.2")
 
-    compileOnly("de.robv.android.xposed:api:82")
-    
     // Compose dependencies (keep them for future use or mixed usage)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
@@ -115,4 +233,7 @@ dependencies {
     implementation("androidx.room:room-runtime:$room_version")
     implementation("androidx.room:room-ktx:$room_version")
     ksp("androidx.room:room-compiler:$room_version")
+
+    // NewBlackbox sandbox core module
+    implementation(project(":NewBlackbox:Bcore"))
 }

@@ -108,7 +108,12 @@
     <string name="nav_menu_run_mode">運行模式</string>
     <string name="run_mode_dialog_title">選擇運行模式</string>
     <string name="run_mode_root">Root 模式</string>
-    <string name="run_mode_noroot">NoRoot 模式</string>
+    <string name="run_mode_developer">開發者模式</string>
+    <string name="run_mode_xposed">Xposed 模式</string>
+    <string name="run_mode_sandbox">沙盒模式</string>
+    <string name="xposed_module_not_found">未偵測到 Xposed 模組</string>
+    <string name="xposed_module_download_hint">請先安裝 KailLocation Xposed 模組才能使用 Xposed 模式。</string>
+    <string name="xposed_module_download">前往下載</string>
     <string name="run_mode_changed">運行模式已切換為 %s</string>
     <string name="sponsor_title">贊助作者</string>
     <string name="sponsor_tron_note">僅支援 TRON 資產收款</string>
@@ -208,6 +213,10 @@
     <string name="setting_anti_pullback">防止定位回拉</string>
     <string name="setting_anti_pullback_summary">持續廣播位置，降低被系統拉回的機率</string>
     <string name="setting_group_other">其他</string>
+    <string name="setting_global_mode">全域模式 (system_server)</string>
+    <string name="setting_global_mode_summary">開啟則注入 system_server，對所有應用程式生效；關閉則僅注入下方指定應用程式</string>
+    <string name="setting_target_packages">目標應用程式包名</string>
+    <string name="setting_target_packages_summary">逗號分隔，僅在全域模式關閉時生效。例：com.autonavi.minimap</string>
     <string name="setting_baidu_key">百度地圖 Key（需重新啟動才會生效）</string>
     <string name="setting_enable_log">啟用日誌</string>
     <string name="setting_enable_log_summary">控制主控台輸出與本機檔案儲存</string>
@@ -263,6 +272,7 @@
     <string name="drawer_nav_sim">導航模擬</string>
     <string name="drawer_nfc_sim">NFC 模擬</string>
     <string name="drawer_run_mode">運行模式</string>
+    <string name="drawer_sandbox">沙盒引擎</string>
 
     <string name="sponsor_copied">已複製</string>
     <string name="sponsor_copy_address">複製地址</string>

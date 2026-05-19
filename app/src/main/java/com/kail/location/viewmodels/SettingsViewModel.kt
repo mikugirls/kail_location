@@ -65,6 +65,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_MAP_ZOOM = "setting_map_zoom"
         const val KEY_SIM_SCHEME = "setting_sim_scheme"
         const val KEY_STEP_SIM_ENABLED = "setting_step_sim_enabled"
+
+        // OpenCellID API key
+        const val KEY_OPENCELLID_API_KEY = "setting_opencellid_api_key"
+
+        // Root injection mode
+        const val KEY_GLOBAL_MODE = "kail_global_mode"
+        const val KEY_TARGET_PACKAGES = "kail_target_packages"
     }
 
     // 已有 StateFlow（保留）
@@ -76,6 +83,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private val _baiduMapKey = MutableStateFlow(prefs.getString(KEY_BAIDU_MAP_KEY, "") ?: "")
     val baiduMapKey: StateFlow<String> = _baiduMapKey.asStateFlow()
+
+    private val _opencellidApiKey = MutableStateFlow(prefs.getString(KEY_OPENCELLID_API_KEY, "") ?: "")
+    val opencellidApiKey: StateFlow<String> = _opencellidApiKey.asStateFlow()
 
     private val _walkSpeed = MutableStateFlow(prefs.getString(KEY_WALK_SPEED, "1.2") ?: "1.2")
     val walkSpeed: StateFlow<String> = _walkSpeed.asStateFlow()
@@ -165,6 +175,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _stepSimEnabled = MutableStateFlow(prefs.getBoolean(KEY_STEP_SIM_ENABLED, true))
     val stepSimEnabled: StateFlow<Boolean> = _stepSimEnabled.asStateFlow()
 
+    private val _globalMode = MutableStateFlow(prefs.getBoolean(KEY_GLOBAL_MODE, true))
+    val globalMode: StateFlow<Boolean> = _globalMode.asStateFlow()
+
+    private val _targetPackages = MutableStateFlow(prefs.getString(KEY_TARGET_PACKAGES, "com.autonavi.minimap") ?: "com.autonavi.minimap")
+    val targetPackages: StateFlow<String> = _targetPackages.asStateFlow()
+
     /** 应用版本号（字符串）。 */
     val appVersion: String = GoUtils.getVersionName(application)
 
@@ -173,6 +189,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             KEY_JOYSTICK_TYPE -> _joystickType.value = sharedPreferences.getString(key, "0") ?: "0"
             KEY_JOYSTICK_SPEED -> _joystickSpeed.value = sharedPreferences.getString(key, "1.2") ?: "1.2"
             KEY_BAIDU_MAP_KEY -> _baiduMapKey.value = sharedPreferences.getString(key, "") ?: ""
+            KEY_OPENCELLID_API_KEY -> _opencellidApiKey.value = sharedPreferences.getString(key, "") ?: ""
             KEY_WALK_SPEED -> _walkSpeed.value = sharedPreferences.getString(key, "1.2") ?: "1.2"
             KEY_RUN_SPEED -> _runSpeed.value = sharedPreferences.getString(key, "3.6") ?: "3.6"
             KEY_BIKE_SPEED -> _bikeSpeed.value = sharedPreferences.getString(key, "10.0") ?: "10.0"
@@ -203,6 +220,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             KEY_HIDE_MOCK -> _hideMock.value = sharedPreferences.getBoolean(key, true)
             KEY_SIM_SCHEME -> _simScheme.value = sharedPreferences.getString(key, "0") ?: "0"
             KEY_STEP_SIM_ENABLED -> _stepSimEnabled.value = sharedPreferences.getBoolean(key, true)
+            KEY_GLOBAL_MODE -> _globalMode.value = sharedPreferences.getBoolean(key, true)
+            KEY_TARGET_PACKAGES -> _targetPackages.value = sharedPreferences.getString(key, "com.autonavi.minimap") ?: "com.autonavi.minimap"
         }
     }
 
@@ -225,9 +244,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
-     * 读取当前全部 Xposed 相关配置，打包成 Bundle 以便通过 sendExtraCommand 发送。
+     * 读取当前全部 Root 相关配置，打包成 Bundle。
      */
-    fun buildXposedConfigBundle(): android.os.Bundle {
+    fun buildRootConfigBundle(): android.os.Bundle {
         return android.os.Bundle().apply {
             putBoolean("enableMockGnss", _gpsSatelliteSim.value)
             putBoolean("enableMockWifi", _enableMockWifi.value)

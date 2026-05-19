@@ -81,7 +81,9 @@ fun RoutePlanScreen(
     appVersion: String,
     viewModel: RouteSimulationViewModel,
     runMode: String,
-    onRunModeChange: (String) -> Unit
+    onRunModeChange: (String) -> Unit,
+    onDeveloperModeSelected: () -> Unit = {},
+    onXposedSettingsSelected: () -> Unit = {}
 ) {
     var startPoint by remember { mutableStateOf("") }
     var endPoint by remember { mutableStateOf("") }
@@ -299,6 +301,8 @@ fun RoutePlanScreen(
                 appVersion = appVersion,
                 runMode = runMode,
                 onRunModeChange = onRunModeChange,
+                onDeveloperModeSelected = onDeveloperModeSelected,
+                onXposedSettingsSelected = onXposedSettingsSelected,
                 scope = scope
             )
         }

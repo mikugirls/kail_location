@@ -52,13 +52,6 @@ object KailLog {
         val fullMessage = "$freqIndicator [$callerFileName] $message"
         val fullTag = "$TAG_PREFIX$freqIndicator$tag"
         
-        // 尝试输出到 XposedBridge
-        kotlin.runCatching {
-            val bridgeClass = Class.forName("de.robv.android.xposed.XposedBridge")
-            val logMethod = bridgeClass.getDeclaredMethod("log", String::class.java)
-            logMethod.invoke(null, "$fullTag: $fullMessage")
-        }
-
         // 无论高低频，只要开关开启都在控制台输出
         when (level.lowercaseChar()) {
             'i' -> Log.i(fullTag, fullMessage)

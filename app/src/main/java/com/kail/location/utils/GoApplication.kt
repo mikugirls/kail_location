@@ -2,6 +2,7 @@ package com.kail.location.utils
 
 import android.app.Activity
 import android.app.Application
+import android.content.Context
 import android.os.Bundle
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -12,6 +13,11 @@ import com.baidu.mapapi.SDKInitializer
 import androidx.preference.PreferenceManager
 import com.google.android.gms.ads.MobileAds
 import com.google.firebase.FirebaseApp
+import java.io.File
+import top.niunaijun.blackbox.BlackBoxCore
+import top.niunaijun.blackbox.app.configuration.ClientConfiguration
+import com.kail.location.sandbox.SandboxManager
+import com.kail.location.sandbox.SandboxSettingsManager
 
 class GoApplication : Application(), Application.ActivityLifecycleCallbacks {
 
@@ -19,10 +25,25 @@ class GoApplication : Application(), Application.ActivityLifecycleCallbacks {
         const val APP_NAME = "KailLocation"
         private const val KEY_BAIDU_MAP_KEY = "setting_baidu_map_key"
         private const val APP_OPEN_AD_UNIT_ID = "ca-app-pub-3992562752831504/6733908854"
+
+        private fun isMainProcess(context: Context): Boolean {
+            val packageName = context.packageName
+            val processName = try {
+                val activityThread = Class.forName("android.app.ActivityThread")
+                    .getMethod("currentProcessName")
+                    .invoke(null) as String?
+                activityThread
+            } catch (e: Exception) {
+                null
+            }
+            return processName == null || processName == packageName
+        }
     }
 
     private val appOpenAdManager = AppOpenAdManager(APP_OPEN_AD_UNIT_ID)
     private var currentActivity: Activity? = null
+    private var sandboxInitialized = false
+    private var isMainProc = true
 
     private fun writeCrashToFile(ex: Throwable) {
         try {
@@ -39,8 +60,51 @@ class GoApplication : Application(), Application.ActivityLifecycleCallbacks {
 
     private var mDefaultHandler: Thread.UncaughtExceptionHandler? = null
 
+    override fun attachBaseContext(base: Context?) {
+        super.attachBaseContext(base)
+
+        isMainProc = isMainProcess(this)
+
+        try {
+            BlackBoxCore.get().closeCodeInit()
+            BlackBoxCore.get().onBeforeMainApplicationAttach(this, base)
+
+            BlackBoxCore.get().doAttachBaseContext(
+                this,
+                object : ClientConfiguration() {
+                    override fun getHostPackageName(): String = packageName
+                    override fun isHideRoot(): Boolean = false
+                    override fun isEnableDaemonService(): Boolean = false
+                    override fun isUseVpnNetwork(): Boolean = false
+                    override fun isDisableFlagSecure(): Boolean = false
+                    override fun requestInstallPackage(file: File?, userId: Int): Boolean = false
+                }
+            )
+
+            BlackBoxCore.get().onAfterMainApplicationAttach(this, base)
+            sandboxInitialized = true
+        } catch (e: Exception) {
+            android.util.Log.e("GoApplication", "Failed to init BlackBoxCore: ${e.message}")
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
+
+        if (sandboxInitialized) {
+            try {
+                BlackBoxCore.get().doCreate()
+                SandboxManager.init(this)
+                SandboxSettingsManager.init(this)
+                android.util.Log.d("GoApplication", "BlackBoxCore initialized, isMain=${BlackBoxCore.get().isMainProcess()}, isServer=${BlackBoxCore.get().isServerProcess()}")
+            } catch (e: Exception) {
+                android.util.Log.e("GoApplication", "Failed to doCreate BlackBoxCore: ${e.message}")
+            }
+        }
+
+        if (!isMainProc) {
+            return
+        }
 
         registerActivityLifecycleCallbacks(this)
         ProcessLifecycleOwner.get().lifecycle.addObserver(LifecycleEventObserver { _, event ->

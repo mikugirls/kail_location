@@ -12,4 +12,9 @@
     <item name="nav_source_code" type="id"/>
     <item name="nav_run_mode" type="id"/>
     <item name="nav_nfc_simulation" type="id"/>
+    <item name="nav_independent_simulation" type="id"/>
+    <item name="nav_wifi_simulation" type="id"/>
+    <item name="nav_cell_simulation" type="id"/>
+    <item name="nav_navigation_simulation" type="id"/>
+    <item name="nav_sandbox" type="id"/>
 </resources>

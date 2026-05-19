@@ -1,33 +1,30 @@
 package com.kail.location.utils
 
-import java.io.File
+import java.io.BufferedReader
+import java.io.InputStreamReader
 
 object ShellUtils {
     fun hasRoot(): Boolean {
-        val runtime = Runtime.getRuntime()
         try {
-            val process = runtime.exec("su")
-            process.outputStream.write("exit\n".toByteArray())
-            process.outputStream.flush()
+            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
+            process.outputStream.close()
+            val reader = BufferedReader(InputStreamReader(process.inputStream))
+            val output = reader.readLine()
+            reader.close()
             process.waitFor()
-            return process.exitValue() == 0
+            return output?.contains("uid=0") == true || process.exitValue() == 0
         } catch (e: Exception) {
             return false
         }
     }
 
     fun executeCommand(command: String): String {
-        val runtime = Runtime.getRuntime()
         try {
-            val process = runtime.exec("su")
-            process.outputStream.write("$command\n".toByteArray())
-            process.outputStream.write("exit\n".toByteArray())
-            process.outputStream.flush()
+            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
+            val stdout = BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }
+            val stderr = BufferedReader(InputStreamReader(process.errorStream)).use { it.readText() }
             process.waitFor()
-            if (process.exitValue() != 0) {
-                return process.errorStream.bufferedReader().readText()
-            }
-            return process.inputStream.bufferedReader().readText()
+            return if (stdout.isNotEmpty()) stdout else stderr
         } catch (e: Exception) {
             e.printStackTrace()
             return ""
@@ -35,17 +32,12 @@ object ShellUtils {
     }
 
     fun executeCommandToBytes(command: String): ByteArray {
-        val runtime = Runtime.getRuntime()
         try {
-            val process = runtime.exec("su")
-            process.outputStream.write("$command\n".toByteArray())
-            process.outputStream.write("exit\n".toByteArray())
-            process.outputStream.flush()
+            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
+            val stdout = process.inputStream.use { it.readBytes() }
+            val stderr = process.errorStream.use { it.readBytes() }
             process.waitFor()
-            if (process.exitValue() != 0) {
-                return process.errorStream.use { it.readBytes() }
-            }
-            return process.inputStream.use { it.readBytes() }
+            return if (stdout.isNotEmpty()) stdout else stderr
         } catch (e: Exception) {
             e.printStackTrace()
             return ByteArray(0)

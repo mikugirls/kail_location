@@ -53,7 +53,9 @@ fun NavigationSimulationScreen(
     onNavigate: (Int) -> Unit,
     appVersion: String,
     runMode: String,
-    onRunModeChange: (String) -> Unit
+    onRunModeChange: (String) -> Unit,
+    onDeveloperModeSelected: () -> Unit = {},
+    onXposedSettingsSelected: () -> Unit = {}
 ) {
     val startPoint by viewModel.startPoint.collectAsState()
     val endPoint by viewModel.endPoint.collectAsState()
@@ -154,7 +156,9 @@ fun NavigationSimulationScreen(
                 onNavigate = onNavigate,
                 appVersion = appVersion,
                 runMode = runMode,
-                onRunModeChange = onRunModeChange
+                onRunModeChange = onRunModeChange,
+                onDeveloperModeSelected = onDeveloperModeSelected,
+                onXposedSettingsSelected = onXposedSettingsSelected
             )
         }
     ) {

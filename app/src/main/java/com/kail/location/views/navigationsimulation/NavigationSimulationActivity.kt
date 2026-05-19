@@ -12,6 +12,7 @@ import com.kail.location.viewmodels.NavigationSimulationViewModel
 import com.kail.location.views.theme.locationTheme
 import com.kail.location.views.routesimulation.RouteSimulationActivity
 import com.kail.location.views.locationsimulation.LocationSimulationActivity
+import com.kail.location.utils.GoUtils
 
 class NavigationSimulationActivity : BaseActivity() {
 
@@ -48,19 +49,23 @@ class NavigationSimulationActivity : BaseActivity() {
                             R.id.nav_nfc_simulation -> {
                                 startActivity(Intent(this, com.kail.location.views.nfcsimulation.NfcSimulationActivity::class.java))
                             }
+                            R.id.nav_independent_simulation -> {
+                                startActivity(Intent(this, com.kail.location.views.independentsimulation.IndependentSimulationActivity::class.java))
+                            }
+                            R.id.nav_wifi_simulation -> {
+                                startActivity(Intent(this, com.kail.location.views.wifisimulation.WifiSimulationActivity::class.java))
+                            }
+                            R.id.nav_cell_simulation -> {
+                                startActivity(Intent(this, com.kail.location.views.cellsimulation.CellSimulationActivity::class.java))
+                            }
+                            R.id.nav_sandbox -> {
+                                startActivity(Intent(this, com.kail.location.views.sandbox.SandboxActivity::class.java))
+                            }
                             R.id.nav_settings -> {
                                 startActivity(Intent(this, com.kail.location.views.settings.SettingsActivity::class.java))
                             }
                             R.id.nav_sponsor -> {
                                 startActivity(Intent(this, com.kail.location.views.sponsor.SponsorActivity::class.java))
-                            }
-                            R.id.nav_dev -> {
-                                try {
-                                    val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
-                                    startActivity(intent)
-                                } catch (e: Exception) {
-                                    android.widget.Toast.makeText(this, getString(R.string.app_error_dev), android.widget.Toast.LENGTH_SHORT).show()
-                                }
                             }
                             R.id.nav_contact -> {
                                 try {
@@ -91,9 +96,31 @@ class NavigationSimulationActivity : BaseActivity() {
                     },
                     appVersion = version,
                     runMode = runMode,
-                    onRunModeChange = { viewModel.setRunMode(it) }
+                    onRunModeChange = { viewModel.setRunMode(it) },
+                    onDeveloperModeSelected = {
+                        if (GoUtils.isAllowMockLocation(this)) {
+                            viewModel.setRunMode("developer")
+                        } else {
+                            try {
+                                val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+                                startActivity(intent)
+                            } catch (e: Exception) {
+                                android.widget.Toast.makeText(this, getString(R.string.app_error_dev), android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    onXposedSettingsSelected = {
+                        startActivity(android.content.Intent(this, com.kail.location.views.xposedsettings.XposedSettingsActivity::class.java))
+                    }
                 )
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (viewModel.runMode.value != "root" && viewModel.runMode.value != "xposed" && viewModel.runMode.value != "sandbox" && GoUtils.isAllowMockLocation(this)) {
+            viewModel.setRunMode("developer")
         }
     }
 }

@@ -105,7 +105,12 @@
     <string name="nav_menu_run_mode">実行モード</string>
     <string name="run_mode_dialog_title">実行モードを選択</string>
     <string name="run_mode_root">Root モード</string>
-    <string name="run_mode_noroot">NoRoot モード</string>
+    <string name="run_mode_developer">開発者モード</string>
+    <string name="run_mode_xposed">Xposed モード</string>
+    <string name="run_mode_sandbox">サンドボックス モード</string>
+    <string name="xposed_module_not_found">Xposed モジュールが見つかりません</string>
+    <string name="xposed_module_download_hint">Xposed モードを使用するには、KailLocation Xposed モジュールをインストールしてください。</string>
+    <string name="xposed_module_download">ダウンロード</string>
     <string name="run_mode_changed">実行モードを %s に切り替えました</string>
     <string name="sponsor_title">作者を支援</string>
     <string name="sponsor_tron_note">TRON 資産のみ対応</string>
@@ -206,6 +211,10 @@
     <string name="setting_anti_pullback">位置の引き戻し防止</string>
     <string name="setting_anti_pullback_summary">位置を継続的に送信して、システムに戻されにくくします</string>
     <string name="setting_group_other">その他</string>
+    <string name="setting_global_mode">グローバルモード (system_server)</string>
+    <string name="setting_global_mode_summary">有効にすると system_server を注入し、すべてのアプリに適用されます。無効にすると以下の対象アプリのみ注入します</string>
+    <string name="setting_target_packages">対象アプリのパッケージ名</string>
+    <string name="setting_target_packages_summary">カンマ区切り、グローバルモードがオフの場合のみ有効。例: com.autonavi.minimap</string>
     <string name="setting_baidu_key">Baidu Map Key（再起動が必要）</string>
     <string name="setting_enable_log">ログを有効化</string>
     <string name="setting_enable_log_summary">コンソール出力とローカルファイル保存を制御します</string>
@@ -261,6 +270,7 @@
     <string name="drawer_nav_sim">ナビゲーションシミュレーション</string>
     <string name="drawer_nfc_sim">NFC シミュレーション</string>
     <string name="drawer_run_mode">実行モード</string>
+    <string name="drawer_sandbox">サンドボックス エンジン</string>
 
     <string name="sponsor_copied">コピーしました</string>
     <string name="sponsor_copy_address">アドレスをコピー</string>

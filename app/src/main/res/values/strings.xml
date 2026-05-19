@@ -134,7 +134,12 @@
     <string name="nav_menu_run_mode">运行模式</string>
     <string name="run_mode_dialog_title">选择运行模式</string>
     <string name="run_mode_root">Root 模式</string>
-    <string name="run_mode_noroot">NoRoot 模式</string>
+    <string name="run_mode_developer">开发者模式</string>
+    <string name="run_mode_xposed">Xposed 模式</string>
+    <string name="run_mode_sandbox">沙盒模式</string>
+    <string name="xposed_module_not_found">未检测到 Xposed 模块</string>
+    <string name="xposed_module_download_hint">请先安装 KailLocation Xposed 模块才能使用 Xposed 模式。</string>
+    <string name="xposed_module_download">前往下载</string>
     <string name="run_mode_changed">运行模式已切换为 %s</string>
     <string name="sponsor_title">赞助作者</string>
     <string name="sponsor_tron_note">仅支持 TRON 资产收款</string>
@@ -164,7 +169,8 @@
     <string name="update_time">更新时间：</string>
     <string name="update_commit">提交信息：</string>
 
-    <!-- Navigation Simulation -->
+    <!-- Navigation -->
+    <string name="nav_menu_sim_group">模拟</string>
     <string name="nav_sim_title">模拟导航</string>
     <string name="nav_sim_start">开始模拟</string>
     <string name="nav_sim_stop">结束模拟</string>
@@ -218,6 +224,15 @@
     <string name="setting_sim_scheme">传感器模拟方案</string>
     <string name="setting_sim_fourier">傅里叶级数 (Fourier)</string>
     <string name="setting_sim_sine_noise">正弦+随机扰动 (Sine+Noise)</string>
+
+    <string-array name="array_sim_scheme">
+        <item>@string/setting_sim_fourier</item>
+        <item>@string/setting_sim_sine_noise</item>
+    </string-array>
+    <string-array name="array_sim_scheme_values">
+        <item>0</item>
+        <item>1</item>
+    </string-array>
     <string name="setting_step_sim">计步器模拟</string>
     <string name="setting_step_sim_summary">控制步数检测器(18)与计步器(19)事件的模拟</string>
     <string name="setting_group_satellite_and_signal">卫星与信号模拟</string>
@@ -242,7 +257,13 @@
     <string name="setting_anti_pullback">反定位拉回</string>
     <string name="setting_anti_pullback_summary">持续广播位置，一定程度解决被系统拉回</string>
     <string name="setting_group_other">其他</string>
+    <string name="setting_global_mode">全局模式 (system_server)</string>
+    <string name="setting_global_mode_summary">开启则注入 system_server，对所有应用生效；关闭则仅注入下方指定应用</string>
+    <string name="setting_target_packages">目标应用包名</string>
+    <string name="setting_target_packages_summary">逗号分隔，仅在全局模式关闭时生效。例：com.autonavi.minimap</string>
     <string name="setting_baidu_key">百度地图 Key (需重启生效)</string>
+    <string name="setting_opencellid_key">OpenCellID API Key</string>
+    <string name="setting_opencellid_key_summary">用于通过经纬度查询周边基站，需先在 opencellid.org 注册获取</string>
     <string name="setting_enable_log">启用日志</string>
     <string name="setting_enable_log_summary">控制控制台输出与本地文件保存</string>
     <string name="setting_map_zoom">悬浮窗地图缩放比例</string>
@@ -278,6 +299,90 @@
     <string name="nfc_sim_help_title">使用说明</string>
     <string name="nfc_sim_help_content">1. 扫描：靠近NFC标签自动读取\n2. 发送：填入URL/包名后点击发送\n3. 历史：点击自动填入，长按重命名</string>
     <string name="nfc_sim_read_failed">读取失败: %s</string>
+
+    <!-- Independent Simulation -->
+    <string name="nav_menu_independent_sim">独立模拟</string>
+    <string name="ind_sim_title">独立模拟</string>
+    <string name="ind_sim_target_apps">目标应用</string>
+    <string name="ind_sim_target_apps_hint">点击选择要模拟的应用</string>
+    <string name="ind_sim_sim_type">模拟类型</string>
+    <string name="ind_sim_location">位置模拟</string>
+    <string name="ind_sim_route">路线模拟</string>
+    <string name="ind_sim_wifi_mock">WiFi模拟</string>
+    <string name="ind_sim_cell_mock">基站模拟</string>
+    <string name="ind_sim_gnss_mock">GPS卫星状态模拟</string>
+    <string name="ind_sim_gnss_mock_summary">伪造GnssStatus卫星数据（防检测）</string>
+    <string name="ind_sim_jitter_mock">位置抖动</string>
+    <string name="ind_sim_jitter_mock_summary">给模拟位置添加随机偏移</string>
+    <string name="ind_sim_start">启动独立模拟</string>
+    <string name="ind_sim_stop">停止独立模拟</string>
+    <string name="ind_sim_no_apps">请先选择目标应用</string>
+    <string name="ind_sim_select_apps">选择目标应用</string>
+    <string name="ind_sim_search_apps">搜索应用</string>
+    <string name="ind_sim_selected_count">已选择 %d 个应用</string>
+
+    <!-- WiFi Simulation -->
+    <string name="nav_menu_wifi_sim">WiFi模拟</string>
+    <string name="wifi_sim_title">WiFi模拟</string>
+    <string name="wifi_sim_enable">启用WiFi模拟</string>
+    <string name="wifi_sim_enable_summary">伪造WiFi扫描结果和连接信息</string>
+    <string name="wifi_sim_add">添加WiFi</string>
+    <string name="wifi_sim_list">WiFi列表</string>
+    <string name="wifi_sim_empty">暂无WiFi数据，请点击添加</string>
+    <string name="wifi_sim_ssid">SSID</string>
+    <string name="wifi_sim_bssid">BSSID (MAC)</string>
+    <string name="wifi_sim_rssi">信号强度 (dBm)</string>
+    <string name="wifi_sim_frequency">频率 (MHz)</string>
+    <string name="wifi_sim_capabilities">加密方式</string>
+    <string name="wifi_sim_delete">删除</string>
+    <string name="wifi_sim_edit">编辑</string>
+    <string name="wifi_sim_name">名称</string>
+    <string name="wifi_sim_history">历史记录</string>
+    <string name="wifi_sim_current_target">当前目标WiFi</string>
+    <string name="wifi_sim_select_prompt">请点击下方WiFi进行选择</string>
+    <string name="wifi_sim_rename">重命名</string>
+    <string name="wifi_sim_rename_title">重命名WiFi</string>
+    <string name="wifi_sim_picker_title">选择WiFi</string>
+    <string name="wifi_sim_scan_nearby">扫描附近WiFi</string>
+    <string name="wifi_sim_scanning">正在扫描...</string>
+    <string name="wifi_sim_scan_prompt">点击上方按钮扫描附近WiFi</string>
+    <string name="wifi_sim_scan_prompt2">或点击右下角手动添加</string>
+    <string name="wifi_sim_manual_add">手动添加WiFi</string>
+    <string name="wifi_sim_use">使用</string>
+    <string name="wifi_sim_scan_result_title">扫描到的WiFi</string>
+    <string name="wifi_sim_scan_empty">未扫描到WiFi，请确保WiFi已开启并处于信号覆盖区域</string>
+
+    <!-- Cell Simulation -->
+    <string name="nav_menu_cell_sim">基站模拟</string>
+    <string name="cell_sim_title">基站模拟</string>
+    <string name="cell_sim_enable">启用基站模拟</string>
+    <string name="cell_sim_enable_summary">伪造基站位置和信号信息</string>
+    <string name="cell_sim_add">添加基站</string>
+    <string name="cell_sim_list">基站列表</string>
+    <string name="cell_sim_empty">暂无基站数据，请点击添加</string>
+    <string name="cell_sim_type">网络类型</string>
+    <string name="cell_sim_mcc">MCC</string>
+    <string name="cell_sim_mnc">MNC</string>
+    <string name="cell_sim_lac">LAC/TAC</string>
+    <string name="cell_sim_cid">CID/CellId</string>
+    <string name="cell_sim_psc">PSC/PCI</string>
+    <string name="cell_sim_lat">纬度</string>
+    <string name="cell_sim_lon">经度</string>
+    <string name="cell_sim_radius">覆盖半径 (米)</string>
+    <string name="cell_sim_delete">删除</string>
+    <string name="cell_sim_edit">编辑</string>
+    <string name="cell_sim_scan_current">获取当前位置基站</string>
+    <string name="cell_sim_scanning">正在扫描基站...</string>
+    <string name="cell_sim_scan_result_title">扫描到的基站</string>
+    <string name="cell_sim_scan_empty">未扫描到基站信息，请确保已授予定位权限并处于信号覆盖区域</string>
+    <string name="cell_sim_scan_add_all">全部添加</string>
+    <string name="cell_sim_fetch_network">从网络获取基站</string>
+    <string name="cell_sim_fetching_network">正在获取...</string>
+    <string name="cell_sim_history">历史记录</string>
+    <string name="cell_type_gsm">GSM</string>
+    <string name="cell_type_cdma">CDMA</string>
+    <string name="cell_type_lte">LTE</string>
+    <string name="cell_type_wcdma">WCDMA</string>
     <string name="nfc_sim_input_hint">请输入URL或包名</string>
     <string name="nfc_sim_send_failed">发送失败: %s</string>
     <string name="nfc_sim_sent">已发送: %s</string>
@@ -300,6 +405,8 @@
     <string name="drawer_nav_sim">模拟导航</string>
     <string name="drawer_nfc_sim">NFC模拟</string>
     <string name="drawer_run_mode">运行模式</string>
+    <string name="drawer_sandbox">沙盒引擎</string>
+    <string name="drawer_xposed_settings">Xposed 设置</string>
 
     <!-- Sponsor -->
     <string name="sponsor_copied">已复制</string>

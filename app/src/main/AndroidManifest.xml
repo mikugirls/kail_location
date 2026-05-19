@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <queries>
+        <package android:name="com.kail.locationxposed" />
+    </queries>
+
     <!-- Android Q 新增的权限。允许用户授予对两个不同范围的位置访问权限：在使用中（仅限前景）或始终（前景和后台） -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <!-- 允许一个程序访问CellID或WiFi热点来获取粗略的位置 -->
@@ -18,11 +22,25 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.DOWNLOAD_WITHOUT_NOTIFICATION" />
 
     <uses-permission android:name="android.permission.REPLACE_EXISTING_PACKAGE"/>
+
+    <!-- NewBlackbox Sandbox Permissions -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.DELETE_PACKAGES"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+    <uses-permission android:name="android.permission.GET_PACKAGE_SIZE" />
+    <uses-permission android:name="android.permission.CLEAR_APP_CACHE" />
+    <uses-permission android:name="android.permission.CLEAR_APP_USER_DATA" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
 
     <!-- 允许程序打开网络套接字 -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -66,19 +84,6 @@
         android:multiArch="true">
 
         <meta-data
-            android:name="xposedmodule"
-            android:value="true" />
-        <meta-data
-            android:name="xposeddescription"
-            android:value="基于 Xposed 实现虚拟位置定位服务" />
-        <meta-data
-            android:name="xposedminversion"
-            android:value="93" />
-        <meta-data
-            android:name="xposedscope"
-            android:resource="@array/xposed_scope" />
-
-        <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-3992562752831504~6622551614" />
 
@@ -95,12 +100,22 @@
         <service
             android:exported="false"
             android:foregroundServiceType="location"
-            android:name="com.kail.location.service.ServiceGoRoot" />
+            android:name="com.kail.location.service.Root.ServiceGoRoot" />
 
         <service
             android:exported="false"
             android:foregroundServiceType="location"
-            android:name="com.kail.location.service.ServiceGoNoroot" />
+            android:name="com.kail.location.service.Developer.ServiceGoDeveloper" />
+
+        <service
+            android:exported="false"
+            android:foregroundServiceType="location"
+            android:name="com.kail.location.service.Xposed.ServiceGoXposed" />
+
+        <service
+            android:exported="false"
+            android:foregroundServiceType="location"
+            android:name="com.kail.location.service.Sandbox.ServiceGoSandbox" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -182,6 +197,88 @@
                 android:name="android.nfc.action.TECH_DISCOVERED"
                 android:resource="@xml/nfc_tech_filter"/>
         </activity>
+
+        <activity
+            android:name="com.kail.location.views.independentsimulation.IndependentSimulationActivity"
+            android:label="@string/ind_sim_title"
+            android:exported="false"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name="com.kail.location.views.wifisimulation.WifiSimulationActivity"
+            android:label="@string/wifi_sim_title"
+            android:exported="false"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name="com.kail.location.views.wifisimulation.WifiPickerActivity"
+            android:label="@string/wifi_sim_picker_title"
+            android:exported="false"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name="com.kail.location.views.cellsimulation.CellSimulationActivity"
+            android:label="@string/cell_sim_title"
+            android:exported="false"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name="com.kail.location.views.xposedsettings.XposedSettingsActivity"
+            android:label="@string/drawer_xposed_settings"
+            android:exported="false"
+            android:theme="@style/AppTheme.NoActionBar" />
+
+        <!-- Sandbox Mode -->
+        <activity
+            android:name="com.kail.location.views.sandbox.SandboxActivity"
+            android:label="@string/drawer_sandbox"
+            android:exported="false"
+            android:theme="@style/AppTheme.NoActionBar" />
+
+        <!-- Sandbox App Launcher (for shortcuts) -->
+        <activity
+            android:name="com.kail.location.views.sandbox.SandboxLauncherActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <!-- NewBlackbox Activities (temporarily disabled) -->
+        <!--
+        <activity
+            android:name="top.niunaijun.blackboxa.view.main.WelcomeActivity"
+            android:exported="false"
+            android:theme="@style/Theme.BlackBox" />
+        <activity
+            android:name="top.niunaijun.blackboxa.view.main.MainActivity"
+            android:exported="false"
+            android:theme="@style/Theme.BlackBox" />
+        <activity
+            android:name="top.niunaijun.blackboxa.view.main.ShortcutActivity"
+            android:excludeFromRecents="true"
+            android:exported="false" />
+        <activity
+            android:name="top.niunaijun.blackboxa.view.list.ListActivity"
+            android:exported="false"
+            android:theme="@style/Theme.BlackBox" />
+        <activity
+            android:name="top.niunaijun.blackboxa.view.setting.SettingActivity"
+            android:exported="false"
+            android:theme="@style/Theme.BlackBox" />
+        <activity
+            android:name="top.niunaijun.blackboxa.view.gms.GmsManagerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.BlackBox" />
+        <activity
+            android:name="top.niunaijun.blackboxa.view.fake.FakeManagerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.BlackBox" />
+        <activity
+            android:name="top.niunaijun.blackboxa.view.fake.FollowMyLocationOverlay"
+            android:exported="false" />
+        -->
 
     </application>
 

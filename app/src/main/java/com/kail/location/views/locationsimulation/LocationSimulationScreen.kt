@@ -74,6 +74,8 @@ fun LocationSimulationScreen(
     onRecordRename: (Int, String) -> Unit,
     runMode: String,
     onRunModeChange: (String) -> Unit,
+    onDeveloperModeSelected: () -> Unit = {},
+    onXposedSettingsSelected: () -> Unit = {},
     onNavigate: (Int) -> Unit,
     onAddLocation: () -> Unit,
     appVersion: String,
@@ -111,6 +113,8 @@ fun LocationSimulationScreen(
                 appVersion = appVersion,
                 runMode = runMode,
                 onRunModeChange = onRunModeChange,
+                onDeveloperModeSelected = onDeveloperModeSelected,
+                onXposedSettingsSelected = onXposedSettingsSelected,
                 scope = scope
             )
         }
@@ -220,7 +224,7 @@ fun LocationSimulationScreen(
                                 )
                             }
 
-                            if (runMode == "root") {
+                            if (runMode == "root" || runMode == "xposed") {
                                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),

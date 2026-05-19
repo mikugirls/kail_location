@@ -46,8 +46,9 @@ import com.baidu.mapapi.search.geocode.*
 import com.kail.location.utils.KailLog
 import com.kail.location.repositories.DataBaseHistoryLocation
 import com.kail.location.views.theme.locationTheme
-import com.kail.location.service.ServiceGoRoot
-import com.kail.location.service.ServiceGoNoroot
+import com.kail.location.service.Root.ServiceGoRoot
+import com.kail.location.service.Developer.ServiceGoDeveloper
+import com.kail.location.service.Xposed.ServiceGoXposed
 import com.kail.location.utils.GoUtils
 import com.kail.location.utils.MapUtils
 import com.kail.location.utils.ShareUtils
@@ -238,6 +239,21 @@ class LocationPickerActivity : BaseActivity(), SensorEventListener {
                     currentCity = currentCity,
                     runMode = runMode,
                     onRunModeChange = { viewModel.setRunMode(it) },
+                    onDeveloperModeSelected = {
+                        if (GoUtils.isAllowMockLocation(this)) {
+                            viewModel.setRunMode("developer")
+                        } else {
+                            try {
+                                val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+                                startActivity(intent)
+                            } catch (e: Exception) {
+                                android.widget.Toast.makeText(this, getString(R.string.app_error_dev), android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    onXposedSettingsSelected = {
+                        startActivity(android.content.Intent(this, com.kail.location.views.xposedsettings.XposedSettingsActivity::class.java))
+                    },
                     isPickMode = isPickMode,
                     onConfirmSelection = {
                          val data = Intent().apply {
@@ -288,16 +304,9 @@ class LocationPickerActivity : BaseActivity(), SensorEventListener {
                             R.id.nav_route_simulation -> startActivity(Intent(this, RouteSimulationActivity::class.java))
                             R.id.nav_navigation_simulation -> startActivity(Intent(this, com.kail.location.views.navigationsimulation.NavigationSimulationActivity::class.java))
                             R.id.nav_settings -> startActivity(Intent(this, SettingsActivity::class.java))
+                            R.id.nav_sandbox -> startActivity(Intent(this, com.kail.location.views.sandbox.SandboxActivity::class.java))
 
                             R.id.nav_sponsor -> startActivity(Intent(this, com.kail.location.views.sponsor.SponsorActivity::class.java))
-                            R.id.nav_dev -> {
-                                try {
-                                    val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
-                                    startActivity(intent)
-                                } catch (e: Exception) {
-                                    Toast.makeText(this, getString(R.string.app_error_dev), Toast.LENGTH_SHORT).show()
-                                }
-                            }
                             R.id.nav_contact -> {
                                 try {
                                     val intent = Intent(Intent.ACTION_SENDTO).apply {
@@ -367,6 +376,9 @@ class LocationPickerActivity : BaseActivity(), SensorEventListener {
     override fun onResume() {
         super.onResume()
         mMapView?.onResume()
+        if (viewModel.runMode.value != LocationPickerViewModel.RUN_MODE_ROOT && viewModel.runMode.value != LocationPickerViewModel.RUN_MODE_XPOSED && viewModel.runMode.value != LocationPickerViewModel.RUN_MODE_SANDBOX && GoUtils.isAllowMockLocation(this)) {
+            viewModel.setRunMode("developer")
+        }
     }
 
     /**
@@ -651,7 +663,7 @@ class LocationPickerActivity : BaseActivity(), SensorEventListener {
             }
         }
 
-        if (runMode != LocationPickerViewModel.RUN_MODE_ROOT) {
+        if (runMode != LocationPickerViewModel.RUN_MODE_ROOT && runMode != LocationPickerViewModel.RUN_MODE_XPOSED) {
             if (!GoUtils.isAllowMockLocation(this)) {
                 KailLog.i(this, "LocationPickerActivity", "Mock location permission NOT granted")
                 GoUtils.DisplayToast(this, getString(R.string.service_set_mock_app))
@@ -669,9 +681,14 @@ class LocationPickerActivity : BaseActivity(), SensorEventListener {
             }
         }
 
+        val serviceClass = when (runMode) {
+            LocationPickerViewModel.RUN_MODE_ROOT -> ServiceGoRoot::class.java
+            LocationPickerViewModel.RUN_MODE_XPOSED -> ServiceGoXposed::class.java
+            else -> ServiceGoDeveloper::class.java
+        }
+
         if (isMockServStart) {
             KailLog.i(this, "LocationPickerActivity", "Stopping Mock Service...")
-            val serviceClass = if (runMode == "root") ServiceGoRoot::class.java else ServiceGoNoroot::class.java
             val intent = Intent(this, serviceClass)
             try {
                 if (mConnection != null) {
@@ -684,7 +701,6 @@ class LocationPickerActivity : BaseActivity(), SensorEventListener {
             isMockServStart = false
         } else {
             KailLog.i(this, "LocationPickerActivity", "Starting Mock Service...")
-            val serviceClass = if (runMode == "root") ServiceGoRoot::class.java else ServiceGoNoroot::class.java
             val intent = Intent(this, serviceClass)
             intent.putExtra(LAT_MSG_ID, mMarkLatLngMap.latitude)
             intent.putExtra(LNG_MSG_ID, mMarkLatLngMap.longitude)
@@ -693,11 +709,15 @@ class LocationPickerActivity : BaseActivity(), SensorEventListener {
             val joystickEnabled = sharedPreferences.getBoolean("setting_joystick_enabled", true)
             intent.putExtra("EXTRA_JOYSTICK_ENABLED", joystickEnabled)
             intent.putExtra("EXTRA_IS_ROUTE_SIMULATION", false)
-            if (runMode == "root") {
+            if (runMode == LocationPickerViewModel.RUN_MODE_ROOT || runMode == LocationPickerViewModel.RUN_MODE_XPOSED) {
                 val stepEnabled = sharedPreferences.getBoolean("setting_step_simulation_enabled", false)
                 val cadence = sharedPreferences.getFloat("setting_step_cadence_spm", 120f)
+                val scheme = sharedPreferences.getString("setting_sim_scheme", "0")?.toIntOrNull() ?: 0
+                val mode = sharedPreferences.getInt("setting_step_mode", 0)
                 intent.putExtra(ServiceGoRoot.EXTRA_STEP_ENABLED, stepEnabled)
                 intent.putExtra(ServiceGoRoot.EXTRA_STEP_FREQ, cadence)
+                intent.putExtra("EXTRA_STEP_SCHEME", scheme)
+                intent.putExtra("EXTRA_STEP_MODE", mode)
             }
             KailLog.i(this, "LocationPickerActivity", "Putting extras: lat=${mMarkLatLngMap.latitude}, lng=${mMarkLatLngMap.longitude}, type=BD09, runMode=$runMode, joystick=$joystickEnabled")
 

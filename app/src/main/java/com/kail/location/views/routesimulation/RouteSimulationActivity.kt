@@ -27,6 +27,7 @@ import com.baidu.mapapi.map.MyLocationConfiguration
 import com.baidu.mapapi.map.BitmapDescriptorFactory
 import com.kail.location.utils.KailLog
 import com.kail.location.utils.MapUtils
+import com.kail.location.utils.GoUtils
 import androidx.core.content.ContextCompat
 
 /**
@@ -90,6 +91,18 @@ class RouteSimulationActivity : BaseActivity(), SensorEventListener {
                         R.id.nav_nfc_simulation -> {
                             startActivity(Intent(this@RouteSimulationActivity, com.kail.location.views.nfcsimulation.NfcSimulationActivity::class.java))
                         }
+                        R.id.nav_independent_simulation -> {
+                            startActivity(Intent(this@RouteSimulationActivity, com.kail.location.views.independentsimulation.IndependentSimulationActivity::class.java))
+                        }
+                        R.id.nav_wifi_simulation -> {
+                            startActivity(Intent(this@RouteSimulationActivity, com.kail.location.views.wifisimulation.WifiSimulationActivity::class.java))
+                        }
+                        R.id.nav_cell_simulation -> {
+                            startActivity(Intent(this@RouteSimulationActivity, com.kail.location.views.cellsimulation.CellSimulationActivity::class.java))
+                        }
+                        R.id.nav_sandbox -> {
+                            startActivity(Intent(this@RouteSimulationActivity, com.kail.location.views.sandbox.SandboxActivity::class.java))
+                        }
                         R.id.nav_settings -> {
                             startActivity(Intent(this@RouteSimulationActivity, SettingsActivity::class.java))
                         }
@@ -115,14 +128,6 @@ class RouteSimulationActivity : BaseActivity(), SensorEventListener {
                                 Toast.makeText(this@RouteSimulationActivity, getString(R.string.error_cannot_open_browser), Toast.LENGTH_SHORT).show()
                             }
                         }
-                        R.id.nav_dev -> {
-                            try {
-                                val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
-                                startActivity(intent)
-                            } catch (e: Exception) {
-                                Toast.makeText(this@RouteSimulationActivity, getString(R.string.app_error_dev), Toast.LENGTH_SHORT).show()
-                            }
-                        }
                         R.id.nav_update -> {
                             viewModel.checkUpdate(this@RouteSimulationActivity)
                         }
@@ -134,11 +139,26 @@ class RouteSimulationActivity : BaseActivity(), SensorEventListener {
 
                 when (currentScreen) {
                     Screen.LIST -> {
-                        RouteSimulationScreen(
-                            viewModel = viewModel,
-                            runMode = runMode,
-                            onRunModeChange = { viewModel.setRunMode(it) },
-                            onNavigate = onNavigate,
+                    RouteSimulationScreen(
+                        viewModel = viewModel,
+                        runMode = runMode,
+                        onRunModeChange = { viewModel.setRunMode(it) },
+                        onDeveloperModeSelected = {
+                            if (GoUtils.isAllowMockLocation(this@RouteSimulationActivity)) {
+                                viewModel.setRunMode("developer")
+                            } else {
+                                try {
+                                    val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+                                    startActivity(intent)
+                                } catch (e: Exception) {
+                                    Toast.makeText(this@RouteSimulationActivity, getString(R.string.app_error_dev), Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        onXposedSettingsSelected = {
+                            startActivity(android.content.Intent(this@RouteSimulationActivity, com.kail.location.views.xposedsettings.XposedSettingsActivity::class.java))
+                        },
+                        onNavigate = onNavigate,
                             onAddRouteClick = { currentScreen = Screen.PLAN },
                             appVersion = version,
                             onStartSimulation = { settings ->
@@ -185,7 +205,14 @@ class RouteSimulationActivity : BaseActivity(), SensorEventListener {
                             appVersion = version,
                             viewModel = viewModel,
                             runMode = runMode,
-                            onRunModeChange = { viewModel.setRunMode(it) }
+                            onRunModeChange = { viewModel.setRunMode(it) },
+                            onDeveloperModeSelected = {
+                                if (GoUtils.isAllowMockLocation(this@RouteSimulationActivity)) {
+                                    viewModel.setRunMode("developer")
+                                } else {
+                                    GoUtils.showEnableMockLocationDialog(this@RouteSimulationActivity)
+                                }
+                            }
                         )
                     }
                 }
@@ -200,6 +227,9 @@ class RouteSimulationActivity : BaseActivity(), SensorEventListener {
     override fun onResume() {
         super.onResume()
         mMapView?.onResume()
+        if (viewModel.runMode.value != "root" && viewModel.runMode.value != "xposed" && viewModel.runMode.value != "sandbox" && GoUtils.isAllowMockLocation(this)) {
+            viewModel.setRunMode("developer")
+        }
     }
 
     /**

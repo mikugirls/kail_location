@@ -26,8 +26,8 @@ import kotlinx.coroutines.launch
 import androidx.lifecycle.viewModelScope
 import androidx.core.content.ContextCompat
 import com.kail.location.R
-import com.kail.location.service.ServiceGoRoot
-import com.kail.location.service.ServiceGoNoroot
+import com.kail.location.service.Root.ServiceGoRoot
+import com.kail.location.service.Developer.ServiceGoDeveloper
 import com.kail.location.views.locationpicker.LocationPickerActivity
 
 /**
@@ -81,7 +81,7 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
     val selectedRecordId: StateFlow<Int?> = _selectedRecordId.asStateFlow()
 
     private val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(application)
-    private val _runMode = MutableStateFlow("noroot")
+    private val _runMode = MutableStateFlow("developer")
     val runMode: StateFlow<String> = _runMode.asStateFlow()
 
     private val _stepSimulationEnabled = MutableStateFlow(false)
@@ -91,7 +91,7 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
     val stepCadenceSpm: StateFlow<Float> = _stepCadenceSpm.asStateFlow()
 
     init {
-        _runMode.value = sharedPreferences.getString("setting_run_mode", "noroot") ?: "noroot"
+        _runMode.value = sharedPreferences.getString("setting_run_mode", "developer") ?: "developer"
         _isJoystickEnabled.value = sharedPreferences.getBoolean("setting_joystick_enabled", true)
         _stepSimulationEnabled.value = sharedPreferences.getBoolean("setting_step_simulation_enabled", false)
         _stepCadenceSpm.value = sharedPreferences.getFloat("setting_step_cadence_spm", 120f)
@@ -126,7 +126,7 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
             val info = locationInfo.value
             
             // 关键修复：启动前强制同步一次最新的运行模式
-            val currentRunMode = sharedPreferences.getString("setting_run_mode", "noroot") ?: "noroot"
+            val currentRunMode = sharedPreferences.getString("setting_run_mode", "developer") ?: "developer"
             _runMode.value = currentRunMode
             
             try {
@@ -143,9 +143,9 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
                     )
                 }
             } catch (_: Exception) {}
-            val serviceClass = if (currentRunMode == "root") ServiceGoRoot::class.java else ServiceGoNoroot::class.java
-            val extraJoystickEnabled = if (currentRunMode == "root") ServiceGoRoot.EXTRA_JOYSTICK_ENABLED else ServiceGoNoroot.EXTRA_JOYSTICK_ENABLED
-            val extraCoordType = if (currentRunMode == "root") ServiceGoRoot.EXTRA_COORD_TYPE else ServiceGoNoroot.EXTRA_COORD_TYPE
+            val serviceClass = if (currentRunMode == "root") ServiceGoRoot::class.java else ServiceGoDeveloper::class.java
+            val extraJoystickEnabled = if (currentRunMode == "root") ServiceGoRoot.EXTRA_JOYSTICK_ENABLED else ServiceGoDeveloper.EXTRA_JOYSTICK_ENABLED
+            val extraCoordType = if (currentRunMode == "root") ServiceGoRoot.EXTRA_COORD_TYPE else ServiceGoDeveloper.EXTRA_COORD_TYPE
             val intent = Intent(app, serviceClass)
             intent.putExtra(LocationPickerActivity.LNG_MSG_ID, info.longitude)
             intent.putExtra(LocationPickerActivity.LAT_MSG_ID, info.latitude)
@@ -169,8 +169,8 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
             }
             _isSimulating.value = true
         } else {
-            val currentRunMode = sharedPreferences.getString("setting_run_mode", "noroot") ?: "noroot"
-            val serviceClass = if (currentRunMode == "root") ServiceGoRoot::class.java else ServiceGoNoroot::class.java
+            val currentRunMode = sharedPreferences.getString("setting_run_mode", "developer") ?: "developer"
+            val serviceClass = if (currentRunMode == "root") ServiceGoRoot::class.java else ServiceGoDeveloper::class.java
             app.stopService(Intent(app, serviceClass))
             _isSimulating.value = false
         }
@@ -189,9 +189,9 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
             .putBoolean("setting_joystick_enabled", enabled)
             .apply()
         if (_isSimulating.value) {
-            val currentRunMode = sharedPreferences.getString("setting_run_mode", "noroot") ?: "noroot"
-            val serviceClass = if (currentRunMode == "root") ServiceGoRoot::class.java else ServiceGoNoroot::class.java
-            val extraJoystickEnabled = if (currentRunMode == "root") ServiceGoRoot.EXTRA_JOYSTICK_ENABLED else ServiceGoNoroot.EXTRA_JOYSTICK_ENABLED
+            val currentRunMode = sharedPreferences.getString("setting_run_mode", "developer") ?: "developer"
+            val serviceClass = if (currentRunMode == "root") ServiceGoRoot::class.java else ServiceGoDeveloper::class.java
+            val extraJoystickEnabled = if (currentRunMode == "root") ServiceGoRoot.EXTRA_JOYSTICK_ENABLED else ServiceGoDeveloper.EXTRA_JOYSTICK_ENABLED
             val intent = Intent(app, serviceClass)
             intent.putExtra(extraJoystickEnabled, enabled)
             app.startService(intent)

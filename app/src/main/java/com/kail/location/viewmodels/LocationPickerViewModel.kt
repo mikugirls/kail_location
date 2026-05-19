@@ -97,12 +97,14 @@ class LocationPickerViewModel(application: Application) : AndroidViewModel(appli
         const val POI_LATITUDE = "POI_LATITUDE"
         const val KEY_RUN_MODE = "setting_run_mode"
         const val RUN_MODE_ROOT = "root"
-        const val RUN_MODE_NOROOT = "noroot"
+        const val RUN_MODE_DEVELOPER = "developer"
+        const val RUN_MODE_XPOSED = "xposed"
+        const val RUN_MODE_SANDBOX = "sandbox"
     }
 
     private val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(application)
 
-    private val _runMode = MutableStateFlow(RUN_MODE_NOROOT)
+    private val _runMode = MutableStateFlow(RUN_MODE_DEVELOPER)
     val runMode: StateFlow<String> = _runMode.asStateFlow()
 
     sealed class UiEvent {
@@ -112,7 +114,7 @@ class LocationPickerViewModel(application: Application) : AndroidViewModel(appli
     val uiEvents: SharedFlow<UiEvent> = _uiEvents.asSharedFlow()
 
     init {
-        _runMode.value = sharedPreferences.getString(KEY_RUN_MODE, RUN_MODE_NOROOT) ?: RUN_MODE_NOROOT
+        _runMode.value = sharedPreferences.getString(KEY_RUN_MODE, RUN_MODE_DEVELOPER) ?: RUN_MODE_DEVELOPER
         suggestionSearch.setOnGetSuggestionResultListener { suggestionResult ->
             if (suggestionResult == null || suggestionResult.allSuggestions == null) {
                 _searchResults.value = emptyList()

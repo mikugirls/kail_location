@@ -19,7 +19,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kail.location.R
 import com.kail.location.viewmodels.SettingsViewModel
-import com.kail.location.xposed.core.FakeLocState
 
 /**
  * 设置屏幕主界面
@@ -54,20 +53,9 @@ fun SettingsScreen(
     val baiduMapKey by viewModel.baiduMapKey.collectAsState()
     val mapZoom by viewModel.mapZoom.collectAsState()
     val gpsSatelliteSim by viewModel.gpsSatelliteSim.collectAsState()
-    val enableAGPS by viewModel.enableAGPS.collectAsState()
-    val enableNMEA by viewModel.enableNMEA.collectAsState()
-    val enableMockWifi by viewModel.enableMockWifi.collectAsState()
-    val allowGetCurrentLocation by viewModel.allowGetCurrentLocation.collectAsState()
-    val allowRegisterListener by viewModel.allowRegisterListener.collectAsState()
-    val allowGeofence by viewModel.allowGeofence.collectAsState()
-    val allowGetFromLocation by viewModel.allowGetFromLocation.collectAsState()
-    val disableFusedLocation by viewModel.disableFusedLocation.collectAsState()
-    val downgradeToCdma by viewModel.downgradeToCdma.collectAsState()
-    val disableWifiScan by viewModel.disableWifiScan.collectAsState()
-    val loopBroadcast by viewModel.loopBroadcast.collectAsState()
-    val hideMock by viewModel.hideMock.collectAsState()
-    val simScheme by viewModel.simScheme.collectAsState()
     val stepSimEnabled by viewModel.stepSimEnabled.collectAsState()
+    val simScheme by viewModel.simScheme.collectAsState()
+    val opencellidApiKey by viewModel.opencellidApiKey.collectAsState()
 
     Scaffold(
         topBar = {
@@ -188,115 +176,22 @@ fun SettingsScreen(
                 summary = stringResource(R.string.setting_gps_satellite_summary)
             )
 
-            SwitchPreference(
-                title = stringResource(R.string.setting_agps_title),
-                checked = enableAGPS,
-                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_ENABLE_AGPS, it) },
-                summary = stringResource(R.string.setting_agps_summary)
-            )
+            // ===== Group: 步频模拟 =====
+            PreferenceCategory(title = "步频模拟")
 
             SwitchPreference(
-                title = stringResource(R.string.setting_nmea_title),
-                checked = enableNMEA,
-                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_ENABLE_NMEA, it) },
-                summary = stringResource(R.string.setting_nmea_summary)
-            )
-
-            SwitchPreference(
-                title = stringResource(R.string.setting_wlan_title),
-                checked = enableMockWifi,
-                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_ENABLE_MOCK_WIFI, it) },
-                summary = stringResource(R.string.setting_wlan_summary)
+                title = "启用步频模拟",
+                checked = stepSimEnabled,
+                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_STEP_SIM_ENABLED, it) },
+                summary = "模拟步频数据用于计步类应用"
             )
 
             ListPreference(
-                title = stringResource(R.string.setting_sim_scheme),
+                title = "步频数据类型",
                 currentValue = simScheme,
-                entries = arrayOf(stringResource(R.string.setting_sim_fourier), stringResource(R.string.setting_sim_sine_noise)),
-                entryValues = arrayOf("0", "1"),
-                onValueChange = {
-                    viewModel.updateStringPreference(SettingsViewModel.KEY_SIM_SCHEME, it)
-                    FakeLocState.setSimScheme(it.toIntOrNull() ?: 0)
-                }
-            )
-
-            SwitchPreference(
-                title = stringResource(R.string.setting_step_sim),
-                checked = stepSimEnabled,
-                onCheckedChange = {
-                    viewModel.updateBooleanPreference(SettingsViewModel.KEY_STEP_SIM_ENABLED, it)
-                    FakeLocState.setStepSimEnabled(it)
-                },
-                summary = stringResource(R.string.setting_step_sim_summary)
-            )
-
-            // ===== Group: 拦截控制 =====
-            PreferenceCategory(title = stringResource(R.string.setting_group_intercept))
-
-            SwitchPreference(
-                title = stringResource(R.string.setting_allow_get_current),
-                checked = allowGetCurrentLocation,
-                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_ALLOW_GET_CURRENT_LOCATION, it) },
-                summary = stringResource(R.string.setting_allow_get_current_summary)
-            )
-
-            SwitchPreference(
-                title = stringResource(R.string.setting_allow_register_listener),
-                checked = allowRegisterListener,
-                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_ALLOW_REGISTER_LISTENER, it) },
-                summary = stringResource(R.string.setting_allow_register_listener_summary)
-            )
-
-            SwitchPreference(
-                title = stringResource(R.string.setting_allow_geofence),
-                checked = allowGeofence,
-                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_ALLOW_GEOFENCE, it) },
-                summary = stringResource(R.string.setting_allow_geofence_summary)
-            )
-
-            SwitchPreference(
-                title = stringResource(R.string.setting_allow_get_location),
-                checked = allowGetFromLocation,
-                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_ALLOW_GET_FROM_LOCATION, it) },
-                summary = stringResource(R.string.setting_allow_get_location_summary)
-            )
-
-            SwitchPreference(
-                title = stringResource(R.string.setting_disable_fused),
-                checked = disableFusedLocation,
-                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_DISABLE_FUSED_LOCATION, it) },
-                summary = stringResource(R.string.setting_disable_fused_summary)
-            )
-
-            SwitchPreference(
-                title = stringResource(R.string.setting_downgrade_cdma),
-                checked = downgradeToCdma,
-                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_DOWNGRADE_TO_CDMA, it) },
-                summary = stringResource(R.string.setting_downgrade_cdma_summary)
-            )
-
-            SwitchPreference(
-                title = stringResource(R.string.setting_disable_wifi_scan),
-                checked = disableWifiScan,
-                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_DISABLE_WIFI_SCAN, it) },
-                summary = stringResource(R.string.setting_disable_wifi_scan_summary)
-            )
-
-            // ===== Group: 反检测 =====
-            PreferenceCategory(title = stringResource(R.string.setting_group_anti_detect))
-
-            SwitchPreference(
-                title = stringResource(R.string.setting_hide_mock),
-                checked = hideMock,
-                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_HIDE_MOCK, it) },
-                summary = stringResource(R.string.setting_hide_mock_summary)
-            )
-
-            SwitchPreference(
-                title = stringResource(R.string.setting_anti_pullback),
-                checked = loopBroadcast,
-                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_LOOP_BROADCAST, it) },
-                summary = stringResource(R.string.setting_anti_pullback_summary)
+                entries = stringArrayResource(R.array.array_sim_scheme),
+                entryValues = stringArrayResource(R.array.array_sim_scheme_values),
+                onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_SIM_SCHEME, it) }
             )
 
             // ===== Group: 日志/其他 =====
@@ -306,6 +201,13 @@ fun SettingsScreen(
                 title = stringResource(R.string.setting_baidu_key),
                 value = baiduMapKey,
                 onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_BAIDU_MAP_KEY, it) }
+            )
+
+            EditTextPreference(
+                title = stringResource(R.string.setting_opencellid_key),
+                value = opencellidApiKey,
+                onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_OPENCELLID_API_KEY, it) },
+                description = stringResource(R.string.setting_opencellid_key_summary)
             )
 
             SwitchPreference(

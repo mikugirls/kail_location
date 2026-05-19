@@ -125,7 +125,6 @@ object GoUtils {
         return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
     }
 
-    // 判断是否已在开发者选项中开启模拟位置权限（注意下面临时添加 @SuppressLint("wrongconstant") 以处理 addTestProvider 参数值的 lint 错误）
     @SuppressLint("WrongConstant")
     /**
      * 是否允许模拟位置（开发者选项中选择了模拟位置信息应用）。
@@ -135,59 +134,29 @@ object GoUtils {
      */
     @JvmStatic
     fun isAllowMockLocation(context: Context): Boolean {
-        var canMockPosition = false
-        var index = 0
-
-        try {
-            val locationManager =
-                context.getSystemService(Context.LOCATION_SERVICE) as LocationManager //获得LocationManager引用
-
-            val list = locationManager.allProviders
-            index = 0
-            while (index < list.size) {
-                if (list[index] == LocationManager.GPS_PROVIDER) {
-                    break
-                }
-                index++
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                locationManager.addTestProvider(
+                    LocationManager.GPS_PROVIDER, false, true, false,
+                    false, true, true, true, ProviderProperties.POWER_USAGE_HIGH, ProviderProperties.ACCURACY_FINE
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                locationManager.addTestProvider(
+                    LocationManager.GPS_PROVIDER, false, true, false,
+                    false, true, true, true, Criteria.POWER_HIGH, Criteria.ACCURACY_FINE
+                )
             }
-
-            if (index < list.size) {
-                try {
-                    if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            locationManager.addTestProvider(
-                                LocationManager.GPS_PROVIDER, false, true, false,
-                                false, true, true, true, ProviderProperties.POWER_USAGE_HIGH, ProviderProperties.ACCURACY_FINE
-                            )
-                        } else {
-                            @Suppress("DEPRECATION")
-                            locationManager.addTestProvider(
-                                LocationManager.GPS_PROVIDER, false, true, false,
-                                false, true, true, true, Criteria.POWER_HIGH, Criteria.ACCURACY_FINE
-                            )
-                        }
-                        canMockPosition = true
-                    } else {
-                        canMockPosition = true
-                    }
-                } catch (e: IllegalArgumentException) {
-                    canMockPosition = true
-                }
-            }
-
-            // 模拟位置可用
-            if (canMockPosition) {
-                try {
-                    locationManager.setTestProviderEnabled(LocationManager.GPS_PROVIDER, false)
-                    locationManager.removeTestProvider(LocationManager.GPS_PROVIDER)
-                } catch (e: IllegalArgumentException) {
-                }
-            }
+            locationManager.removeTestProvider(LocationManager.GPS_PROVIDER)
+            true
         } catch (e: SecurityException) {
-            e.printStackTrace()
+            false
+        } catch (e: IllegalArgumentException) {
+            true
+        } catch (e: Exception) {
+            false
         }
-
-        return canMockPosition
     }
 
     /**
@@ -212,16 +181,6 @@ object GoUtils {
     fun isRootAvailable(): Boolean {
         return kotlin.runCatching {
             Runtime.getRuntime().exec(arrayOf("su", "-c", "echo ok")).waitFor() == 0
-        }.getOrDefault(false)
-    }
-
-    @JvmStatic
-    fun isXposedActive(context: Context): Boolean {
-        return kotlin.runCatching {
-            val f = java.io.File(context.filesDir, "kail_location_xposed.log")
-            if (!f.exists()) return@runCatching false
-            val s = f.readText()
-            s.contains("hook ready") || s.isNotBlank()
         }.getOrDefault(false)
     }
 

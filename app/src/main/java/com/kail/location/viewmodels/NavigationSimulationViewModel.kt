@@ -22,8 +22,9 @@ import com.baidu.mapapi.search.sug.SuggestionSearch
 import com.baidu.mapapi.search.sug.SuggestionSearchOption
 import com.kail.location.models.RouteInfo
 import com.kail.location.R
-import com.kail.location.service.ServiceGoRoot
-import com.kail.location.service.ServiceGoNoroot
+import com.kail.location.service.Root.ServiceGoRoot
+import com.kail.location.service.Developer.ServiceGoDeveloper
+import com.kail.location.service.Xposed.ServiceGoXposed
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -87,8 +88,17 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
     private val routePlanSearch: RoutePlanSearch = RoutePlanSearch.newInstance()
     private val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(application)
     
-    private val _runMode = MutableStateFlow("noroot")
+    private val _runMode = MutableStateFlow("developer")
     val runMode: StateFlow<String> = _runMode.asStateFlow()
+
+    private fun getServiceClass(mode: String) = when (mode) {
+        "root" -> ServiceGoRoot::class.java
+        "xposed" -> ServiceGoXposed::class.java
+        else -> ServiceGoDeveloper::class.java
+    }
+
+    private fun getExtraName(mode: String, rootName: String, devName: String) =
+        if (mode == "root" || mode == "xposed") rootName else devName
     
     private val _speed = MutableStateFlow(60.0)
     val speed: StateFlow<Double> = _speed.asStateFlow()
@@ -141,7 +151,7 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
             }
         }
 
-        _runMode.value = sharedPreferences.getString("setting_run_mode", "noroot") ?: "noroot"
+        _runMode.value = sharedPreferences.getString("setting_run_mode", "developer") ?: "developer"
         initSearchListeners()
 
         // Register receiver
@@ -324,7 +334,7 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
     private fun startSimulationService(points: List<LatLng>) {
         val app = getApplication<Application>()
         val currentRunMode = runMode.value
-        val serviceClass = if (currentRunMode == "root") ServiceGoRoot::class.java else ServiceGoNoroot::class.java
+        val serviceClass = getServiceClass(currentRunMode)
         val intent = Intent(app, serviceClass)
         
         val pointsArray = DoubleArray(points.size * 2)
@@ -333,11 +343,11 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
             pointsArray[i * 2 + 1] = points[i].latitude
         }
         
-        val extraRoutePoints = if (currentRunMode == "root") ServiceGoRoot.EXTRA_ROUTE_POINTS else ServiceGoNoroot.EXTRA_ROUTE_POINTS
-        val extraRouteLoop = if (currentRunMode == "root") ServiceGoRoot.EXTRA_ROUTE_LOOP else ServiceGoNoroot.EXTRA_ROUTE_LOOP
-        val extraJoystickEnabled = if (currentRunMode == "root") ServiceGoRoot.EXTRA_JOYSTICK_ENABLED else ServiceGoNoroot.EXTRA_JOYSTICK_ENABLED
-        val extraRouteSpeed = if (currentRunMode == "root") ServiceGoRoot.EXTRA_ROUTE_SPEED else ServiceGoNoroot.EXTRA_ROUTE_SPEED
-        val extraCoordType = if (currentRunMode == "root") ServiceGoRoot.EXTRA_COORD_TYPE else ServiceGoNoroot.EXTRA_COORD_TYPE
+        val extraRoutePoints = getExtraName(currentRunMode, ServiceGoRoot.EXTRA_ROUTE_POINTS, ServiceGoDeveloper.EXTRA_ROUTE_POINTS)
+        val extraRouteLoop = getExtraName(currentRunMode, ServiceGoRoot.EXTRA_ROUTE_LOOP, ServiceGoDeveloper.EXTRA_ROUTE_LOOP)
+        val extraJoystickEnabled = getExtraName(currentRunMode, ServiceGoRoot.EXTRA_JOYSTICK_ENABLED, ServiceGoDeveloper.EXTRA_JOYSTICK_ENABLED)
+        val extraRouteSpeed = getExtraName(currentRunMode, ServiceGoRoot.EXTRA_ROUTE_SPEED, ServiceGoDeveloper.EXTRA_ROUTE_SPEED)
+        val extraCoordType = getExtraName(currentRunMode, ServiceGoRoot.EXTRA_COORD_TYPE, ServiceGoDeveloper.EXTRA_COORD_TYPE)
         
         intent.putExtra(extraRoutePoints, pointsArray)
         intent.putExtra(extraRouteLoop, false)
@@ -384,8 +394,8 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
 
     fun pauseSimulation() {
         val app = getApplication<Application>()
-        val serviceClass = if (runMode.value == "root") ServiceGoRoot::class.java else ServiceGoNoroot::class.java
-        val controlAction = if (runMode.value == "root") ServiceGoRoot.CONTROL_PAUSE else ServiceGoNoroot.CONTROL_PAUSE
+        val serviceClass = getServiceClass(runMode.value)
+        val controlAction = getExtraName(runMode.value, ServiceGoRoot.CONTROL_PAUSE, ServiceGoDeveloper.CONTROL_PAUSE)
         val intent = Intent(app, serviceClass)
         intent.putExtra("EXTRA_CONTROL_ACTION", controlAction)
         app.startService(intent)
@@ -394,8 +404,8 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
 
     fun resumeSimulation() {
         val app = getApplication<Application>()
-        val serviceClass = if (runMode.value == "root") ServiceGoRoot::class.java else ServiceGoNoroot::class.java
-        val controlAction = if (runMode.value == "root") ServiceGoRoot.CONTROL_RESUME else ServiceGoNoroot.CONTROL_RESUME
+        val serviceClass = getServiceClass(runMode.value)
+        val controlAction = getExtraName(runMode.value, ServiceGoRoot.CONTROL_RESUME, ServiceGoDeveloper.CONTROL_RESUME)
         val intent = Intent(app, serviceClass)
         intent.putExtra("EXTRA_CONTROL_ACTION", controlAction)
         app.startService(intent)
@@ -404,7 +414,7 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
 
     fun stopSimulation() {
         val app = getApplication<Application>()
-        val serviceClass = if (runMode.value == "root") ServiceGoRoot::class.java else ServiceGoNoroot::class.java
+        val serviceClass = getServiceClass(runMode.value)
         app.stopService(Intent(app, serviceClass))
         _isSimulating.value = false
         _isPaused.value = false
@@ -413,9 +423,9 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
 
     fun seekProgress(ratio: Float) {
         val app = getApplication<Application>()
-        val serviceClass = if (runMode.value == "root") ServiceGoRoot::class.java else ServiceGoNoroot::class.java
-        val controlAction = if (runMode.value == "root") ServiceGoRoot.CONTROL_SEEK else ServiceGoNoroot.CONTROL_SEEK
-        val seekRatio = if (runMode.value == "root") ServiceGoRoot.EXTRA_SEEK_RATIO else ServiceGoNoroot.EXTRA_SEEK_RATIO
+        val serviceClass = getServiceClass(runMode.value)
+        val controlAction = getExtraName(runMode.value, ServiceGoRoot.CONTROL_SEEK, ServiceGoDeveloper.CONTROL_SEEK)
+        val seekRatio = getExtraName(runMode.value, ServiceGoRoot.EXTRA_SEEK_RATIO, ServiceGoDeveloper.EXTRA_SEEK_RATIO)
         val intent = Intent(app, serviceClass)
         intent.putExtra("EXTRA_CONTROL_ACTION", controlAction)
         intent.putExtra(seekRatio, ratio)

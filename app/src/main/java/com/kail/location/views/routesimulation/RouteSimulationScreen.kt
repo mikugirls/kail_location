@@ -54,6 +54,8 @@ fun RouteSimulationScreen(
     viewModel: RouteSimulationViewModel,
     runMode: String,
     onRunModeChange: (String) -> Unit,
+    onDeveloperModeSelected: () -> Unit = {},
+    onXposedSettingsSelected: () -> Unit = {},
     onNavigate: (Int) -> Unit,
     onAddRouteClick: () -> Unit,
     appVersion: String,
@@ -125,6 +127,8 @@ fun RouteSimulationScreen(
                 appVersion = appVersion,
                 runMode = runMode,
                 onRunModeChange = onRunModeChange,
+                onDeveloperModeSelected = onDeveloperModeSelected,
+                onXposedSettingsSelected = onXposedSettingsSelected,
                 scope = scope
             )
         }
@@ -461,10 +465,10 @@ fun SettingsDialog(
     settings: SimulationSettings,
     onDismiss: () -> Unit,
     onSettingsChange: (SimulationSettings) -> Unit,
-    runMode: String = "noroot"
+    runMode: String = "developer"
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val canUseStepFreq = runMode == "root"
+    val canUseStepFreq = runMode == "root" || runMode == "xposed"
     
     Dialog(onDismissRequest = onDismiss) {
         Card(

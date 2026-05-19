@@ -125,7 +125,12 @@
     <string name="nav_menu_run_mode">Run Mode</string>
     <string name="run_mode_dialog_title">Select Run Mode</string>
     <string name="run_mode_root">Root Mode</string>
-    <string name="run_mode_noroot">NoRoot Mode</string>
+    <string name="run_mode_developer">Developer Mode</string>
+    <string name="run_mode_xposed">Xposed Mode</string>
+    <string name="run_mode_sandbox">Sandbox Mode</string>
+    <string name="xposed_module_not_found">Xposed Module Not Found</string>
+    <string name="xposed_module_download_hint">Please install the KailLocation Xposed module to use Xposed mode.</string>
+    <string name="xposed_module_download">Download</string>
     <string name="run_mode_changed">Run mode changed to %s</string>
     <string name="sponsor_title">Sponsor</string>
     <string name="sponsor_tron_note">TRON assets only</string>
@@ -229,6 +234,10 @@
     <string name="setting_anti_pullback">Anti Location Pullback</string>
     <string name="setting_anti_pullback_summary">Continuously broadcast location to prevent system pullback</string>
     <string name="setting_group_other">Other</string>
+    <string name="setting_global_mode">Global Mode (system_server)</string>
+    <string name="setting_global_mode_summary">Inject system_server to affect all apps; disable to inject only target apps below</string>
+    <string name="setting_target_packages">Target App Packages</string>
+    <string name="setting_target_packages_summary">Comma-separated, only effective when global mode is off. E.g. com.autonavi.minimap</string>
     <string name="setting_baidu_key">Baidu Map Key (restart required)</string>
     <string name="setting_enable_log">Enable Log</string>
     <string name="setting_enable_log_summary">Control console output and local file saving</string>
@@ -287,6 +296,8 @@
     <string name="drawer_nav_sim">Navigation Simulation</string>
     <string name="drawer_nfc_sim">NFC Simulation</string>
     <string name="drawer_run_mode">Run Mode</string>
+    <string name="drawer_sandbox">Sandbox Engine</string>
+    <string name="drawer_xposed_settings">Xposed Settings</string>
 
     <!-- Sponsor -->
     <string name="sponsor_copied">Copied</string>

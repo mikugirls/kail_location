@@ -208,9 +208,6 @@ fun SandboxScreen(
                                 onDeleteApp = { onUninstallApp(app.packageName) }
                             )
                         }
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            com.kail.location.ads.NativeAdCard()
-                        }
                     }
                 }
 

@@ -17,6 +17,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.kail.location.R
+import com.kail.location.auth.AuthManager
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,8 +36,18 @@ fun AppDrawer(
     var showRunModeDialog by remember { mutableStateOf(false) }
     var showEnvDialog by remember { mutableStateOf(false) }
     var showXposedDownloadDialog by remember { mutableStateOf(false) }
+    var showLoginActivity by remember { mutableStateOf(false) }
     var envMessage by remember { mutableStateOf("") }
     val context = LocalContext.current
+
+    var isLoggedIn by remember { mutableStateOf(AuthManager.isLoggedIn) }
+    val userEmail by remember { mutableStateOf(AuthManager.email ?: "") }
+
+    if (showLoginActivity) {
+        val intent = Intent(context, com.kail.location.views.auth.LoginActivity::class.java)
+        context.startActivity(intent)
+        showLoginActivity = false
+    }
 
     fun isXposedModuleInstalled(): Boolean {
         return try {
@@ -182,8 +193,42 @@ fun AppDrawer(
 
     ModalDrawerSheet {
         LazyColumn {
-            item { DrawerHeader(appVersion) }
+            item { DrawerHeader(appVersion, onLoginClick = { showLoginActivity = true }) }
             item { HorizontalDivider() }
+
+            if (isLoggedIn) {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.drawer_logged_in_as),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = userEmail,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        TextButton(
+                            onClick = {
+                                AuthManager.clearAuth()
+                                isLoggedIn = false
+                            }
+                        ) {
+                            Text(stringResource(R.string.drawer_action_logout))
+                        }
+                    }
+                }
+                item { HorizontalDivider() }
+            }
 
             // ===== Group: 模拟 =====
             item {

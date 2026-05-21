@@ -120,10 +120,6 @@ fun HistoryScreen(
                             onDeleteClick = { itemToDelete = record },
                             onEditClick = { itemToEdit = record }
                         )
-                        HorizontalDivider()
-                    }
-                    item {
-                        com.kail.location.ads.NativeAdCard()
                     }
                 }
             }

@@ -29,8 +29,10 @@ app/build/
 app/.cxx/
 app/.externalNativeBuild/
 
-
+CLAUDE.md
 docs/
 # Keystore
 *.jks
 *.keystore
+# Added by code-review-graph
+.code-review-graph/

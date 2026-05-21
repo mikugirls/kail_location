@@ -41,6 +41,9 @@ object NativeSensorHook {
     @JvmStatic
     external fun nativeInitHook(spm: Float, mode: Int, scheme: Int, enable: Boolean)
 
+    @JvmStatic
+    external fun nativeReset()
+
     /**
      * Initialize the native sensor hook.
      * Should be called once per APP process.
@@ -117,6 +120,24 @@ object NativeSensorHook {
             nativeSetStepSimEnabled(enabled)
         } catch (e: Throwable) {
             Log.e(TAG, "setStepSimEnabled failed: ${e.message}")
+        }
+    }
+
+    /**
+     * Reset simulation state. Hooks remain installed (resident), only flags are cleared.
+     */
+    @JvmStatic
+    fun reset() {
+        try {
+            if (!soLoaded) {
+                Log.w(TAG, "SO not loaded, skipping reset")
+                return
+            }
+            // DO NOT reset initCalled - hooks remain installed, only simulation state is cleared
+            nativeReset()
+            Log.i(TAG, "nativeReset succeeded")
+        } catch (e: Throwable) {
+            Log.e(TAG, "nativeReset failed: ${e.message}")
         }
     }
 

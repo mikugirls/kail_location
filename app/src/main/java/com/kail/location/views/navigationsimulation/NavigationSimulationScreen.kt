@@ -367,9 +367,6 @@ fun NavigationSimulationScreen(
                                 )
                             }
                         }
-                        item {
-                            com.kail.location.ads.NativeAdCard()
-                        }
                     }
                 }
             }

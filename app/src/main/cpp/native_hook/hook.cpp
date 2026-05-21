@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdint>
+#include <unistd.h>
 #include <cerrno>
 #include <sys/types.h>
 #include <cinttypes>
@@ -28,12 +29,16 @@
 typedef void (*SendObjectsFunc)(long*, void*, long, long);
 static SendObjectsFunc original_send_objects = nullptr;
 static bool send_objects_hook_installed = false;
+static void* send_objects_hook_addr = nullptr;
+static void* send_objects_target_addr = nullptr;
 static bool route_simulation_active = false;
 static uint64_t send_objects_offset = 0;
 
 typedef void (*ConvertToSensorEventFunc)(void* param_1, void* param_2);
 static ConvertToSensorEventFunc original_convert_to_sensor_event = nullptr;
 static bool convert_to_sensor_event_hook_installed = false;
+static void* convert_to_sensor_event_hook_addr = nullptr;
+static void* convert_to_sensor_event_target_addr = nullptr;
 static uint64_t convert_to_sensor_event_offset = 0;
 
 static int stepdetectorTrigger = 0;
@@ -79,7 +84,7 @@ extern "C" void hooked_send_objects(long* param_1, void* param_2, long param_3, 
         }
         return;
     }
-    
+
     if (count <= 0 || count > 1000) {
         if (original_send_objects) {
             original_send_objects(param_1, param_2, param_3, param_4);
@@ -88,7 +93,7 @@ extern "C" void hooked_send_objects(long* param_1, void* param_2, long param_3, 
     }
 
     size_t buffer_size = count * EVENT_SIZE;
-    
+
     if (buffer_size > 65536) {
         if (original_send_objects) {
             original_send_objects(param_1, param_2, param_3, param_4);
@@ -110,24 +115,24 @@ extern "C" void hooked_send_objects(long* param_1, void* param_2, long param_3, 
 
         if (route_simulation_active && step_sim_enabled) {
             int type = *(int*)((char*)event + 0x08);
-            
+
             int64_t timestamp = *(int64_t*)((char*)event + 0x10);
-            
+
             if (type == SENSOR_TYPE_STEP_COUNTER || type == SENSOR_TYPE_STEP_DETECTOR) {
                 has_step = true;
             }
-            
+
             if (type == SENSOR_TYPE_STEP_COUNTER) {
                 uint64_t data0 = *(uint64_t*)((char*)event + 0x18);
-                
+
                 sensors_event_t se;
                 memset(&se, 0, sizeof(se));
                 se.type = type;
                 se.timestamp = timestamp;
                 se.data[0] = (float)data0;
-                
+
                 gait::SensorSimulator::Get().ProcessSensorEvents(&se, 1);
-                
+
                 *(uint64_t*)((char*)event + 0x18) = (uint64_t)se.data[0];
             } else {
                 float data0 = *(float*)((char*)event + 0x18);
@@ -187,7 +192,16 @@ extern "C" void hooked_convert_to_sensor_event(void* param_1, void* param_2) {
     }
 
     if (original_convert_to_sensor_event) {
-        original_convert_to_sensor_event(param_1, param_2);
+        // 指针有效性检查：防止 Dobby Trampoline 内存被系统回收导致崩溃
+        uintptr_t addr = (uintptr_t)original_convert_to_sensor_event;
+        bool looks_valid = (addr > 0x10000) && ((addr & 0x3) == 0) && (addr < 0x8000000000ULL);
+
+        if (looks_valid) {
+            original_convert_to_sensor_event(param_1, param_2);
+        } else {
+            ALOGE("[JNI] original_convert_to_sensor_event INVALID: %p (addr=0x%llx), skipping to prevent crash",
+                  original_convert_to_sensor_event, (unsigned long long)addr);
+        }
     }
 
     // Inject fake step events when mocking is enabled.
@@ -258,14 +272,20 @@ extern "C" void hooked_convert_to_sensor_event(void* param_1, void* param_2) {
 }
 
 static void install_send_objects_hook() {
-    void* base = nullptr;
-    
-    FILE* fp = fopen("/proc/self/maps", "r");
-    if (!fp) {
-        ALOGE("Cannot open /proc/self/maps");
+    ALOGI("[JNI] install_send_objects_hook: send_objects_hook_installed=%d", send_objects_hook_installed);
+    if (send_objects_hook_installed) {
+        ALOGI("[JNI] send_objects hook already installed, skipping");
         return;
     }
-    
+    ALOGI("[JNI] >>> install_send_objects_hook ENTRY: offset=0x%llx", (unsigned long long)send_objects_offset);
+    void* base = nullptr;
+
+    FILE* fp = fopen("/proc/self/maps", "r");
+    if (!fp) {
+        ALOGE("[JNI] Cannot open /proc/self/maps");
+        return;
+    }
+
     char line[512];
     while (fgets(line, sizeof(line), fp)) {
         // send_objects lives in libsensor.so (verified by readelf on this device)
@@ -277,38 +297,49 @@ static void install_send_objects_hook() {
         }
     }
     fclose(fp);
-    
+
     if (!base) {
-        ALOGE("libsensor.so not found in maps, cannot hook send_objects");
+        ALOGE("[JNI] libsensor.so not found in maps, cannot hook send_objects");
         return;
     }
-    
+    ALOGI("[JNI] libsensor.so base=%p", base);
+
     if (send_objects_offset == 0) {
-        ALOGE("send_objects_offset is 0, cannot hook");
+        ALOGE("[JNI] send_objects_offset is 0, cannot hook");
         return;
     }
-    
+
     void* addr = (void*)((char*)base + send_objects_offset);
-    
+    send_objects_hook_addr = addr;
+    send_objects_target_addr = addr;
+    ALOGI("[JNI] DobbyHook send_objects: target=%p, offset=0x%llx", addr, (unsigned long long)send_objects_offset);
+
     int ret = DobbyHook(addr, (void*)hooked_send_objects, (void**)&original_send_objects);
-    
+    ALOGI("[JNI] DobbyHook send_objects result: ret=%d, original=%p", ret, original_send_objects);
+
     if (ret == 0) {
         send_objects_hook_installed = true;
-        ALOGI("send_objects hook installed at %p (base=%p offset=0x%lx)", addr, base, (unsigned long)send_objects_offset);
+        ALOGI("[JNI] >>> send_objects hook INSTALLED at %p (target=%p)", addr, send_objects_target_addr);
     } else {
         ALOGE("send_objects DobbyHook failed: ret=%d addr=%p", ret, addr);
     }
 }
 
 static void install_convert_to_sensor_event_hook() {
-    void* base = nullptr;
-    
-    FILE* fp = fopen("/proc/self/maps", "r");
-    if (!fp) {
-        ALOGE("Cannot open /proc/self/maps for convert hook");
+    ALOGI("[JNI] install_convert_to_sensor_event_hook: convert_to_sensor_event_hook_installed=%d", convert_to_sensor_event_hook_installed);
+    if (convert_to_sensor_event_hook_installed) {
+        ALOGI("[JNI] convert_to_sensor_event hook already installed, skipping");
         return;
     }
-    
+    ALOGI("[JNI] >>> install_convert_to_sensor_event_hook ENTRY: offset=0x%llx", (unsigned long long)convert_to_sensor_event_offset);
+    void* base = nullptr;
+
+    FILE* fp = fopen("/proc/self/maps", "r");
+    if (!fp) {
+        ALOGE("[JNI] Cannot open /proc/self/maps for convert hook");
+        return;
+    }
+
     char line[512];
     while (fgets(line, sizeof(line), fp)) {
         if (strstr(line, "libsensorservice.so")) {
@@ -319,24 +350,29 @@ static void install_convert_to_sensor_event_hook() {
         }
     }
     fclose(fp);
-    
+
     if (!base) {
-        ALOGE("libsensorservice.so not found, cannot hook convert_to_sensor_event");
+        ALOGE("[JNI] libsensorservice.so not found, cannot hook convert_to sensor_event");
         return;
     }
-    
+    ALOGI("[JNI] libsensorservice.so base=%p", base);
+
     if (convert_to_sensor_event_offset == 0) {
-        ALOGE("convert_to_sensor_event_offset is 0, cannot hook");
+        ALOGE("[JNI] convert_to_sensor_event_offset is 0, cannot hook");
         return;
     }
-    
+
     void* addr = (void*)((char*)base + convert_to_sensor_event_offset);
-    
+    convert_to_sensor_event_hook_addr = addr;
+    convert_to_sensor_event_target_addr = addr;
+    ALOGI("[JNI] DobbyHook convert_to_sensor_event: target=%p, offset=0x%llx", addr, (unsigned long long)convert_to_sensor_event_offset);
+
     int ret = DobbyHook(addr, (void*)hooked_convert_to_sensor_event, (void**)&original_convert_to_sensor_event);
-    
+    ALOGI("[JNI] DobbyHook convert_to_sensor_event result: ret=%d, original=%p", ret, original_convert_to_sensor_event);
+
     if (ret == 0) {
         convert_to_sensor_event_hook_installed = true;
-        ALOGI("convert_to_sensor_event hook installed at %p (base=%p offset=0x%lx)", addr, base, (unsigned long)convert_to_sensor_event_offset);
+        ALOGI("[JNI] >>> convert_to_sensor_event hook INSTALLED at %p (target=%p)", addr, convert_to_sensor_event_target_addr);
     } else {
         ALOGE("convert_to_sensor_event DobbyHook failed: ret=%d addr=%p", ret, addr);
     }
@@ -344,34 +380,37 @@ static void install_convert_to_sensor_event_hook() {
 
 extern "C" {
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_location_root_NativeSensorHook_nativeSetWriteOffset(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jlong offset
 ) {
     send_objects_offset = (uint64_t)offset;
+    ALOGI("[JNI] nativeSetWriteOffset: offset=%lld (0x%llx)", (long long)offset, (unsigned long long)offset);
 }
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_location_root_NativeSensorHook_nativeSetConvertOffset(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jlong offset
 ) {
     convert_to_sensor_event_offset = (uint64_t)offset;
+    ALOGI("[JNI] nativeSetConvertOffset: offset=%lld (0x%llx)", (long long)offset, (unsigned long long)offset);
 }
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_location_root_NativeSensorHook_nativeSetRouteSimulation(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jboolean active,
     jfloat spm,
     jint mode
 ) {
     bool isActive = (active != JNI_FALSE);
-    
+    ALOGI("[JNI] nativeSetRouteSimulation: active=%d, spm=%.1f, mode=%d", isActive ? 1 : 0, spm, mode);
+
     if (isActive) {
         current_spm = spm;
         setRouteSimulationActive(true);
@@ -384,42 +423,49 @@ Java_com_kail_location_root_NativeSensorHook_nativeSetRouteSimulation(
     }
 }
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_location_root_NativeSensorHook_nativeSetGaitParams(
-    JNIEnv* env, 
-    jclass clazz, 
-    jfloat spm, 
+    JNIEnv* env,
+    jclass clazz,
+    jfloat spm,
     jint mode,
     jint scheme,
     jboolean enable
 ) {
+    ALOGI("[JNI] nativeSetGaitParams ENTRY: spm=%.1f, mode=%d, scheme=%d, enable=%d", spm, mode, scheme, enable != JNI_FALSE);
+    ALOGI("[JNI] nativeSetGaitParams STATE: original_convert=%p, original_send=%p",
+          original_convert_to_sensor_event, original_send_objects);
     gait::SensorSimulator::Get().UpdateParams(spm, mode, scheme, enable);
+    ALOGI("[JNI] nativeSetGaitParams EXIT");
 }
 
-JNIEXPORT jboolean JNICALL 
+JNIEXPORT jboolean JNICALL
 Java_com_kail_location_root_NativeSensorHook_nativeReloadConfig(
-    JNIEnv* env, 
+    JNIEnv* env,
     jclass clazz
 ) {
+    ALOGI("[JNI] nativeReloadConfig");
     return gait::SensorSimulator::Get().ReloadConfig() ? JNI_TRUE : JNI_FALSE;
 }
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_location_root_NativeSensorHook_nativeSetMocking(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jint mocking
 ) {
     isMocking = (int)mocking;
+    ALOGI("[JNI] nativeSetMocking: mocking=%d", mocking);
 }
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_location_root_NativeSensorHook_nativeSetAuthorized(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jint authorized
 ) {
     isAuthorized = (int)authorized;
+    ALOGI("[JNI] nativeSetAuthorized: authorized=%d", authorized);
 }
 
 JNIEXPORT void JNICALL 
@@ -428,13 +474,42 @@ Java_com_kail_location_root_NativeSensorHook_nativeSetStepSimEnabled(
     jclass clazz, 
     jboolean enabled
 ) {
+    ALOGI("[JNI] nativeSetStepSimEnabled ENTRY: enabled=%d", enabled != JNI_FALSE);
     step_sim_enabled = (enabled != JNI_FALSE) ? 1 : 0;
     route_simulation_active = (enabled != JNI_FALSE);
     if (!enabled) {
         isMocking = 0;
+        step_event_counter = 0;
+        last_step_inject_ns = 0;
+        stepdetectorTrigger = 0;
+        stepcounterTrigger = 0;
+        mSensorHandleStepDetector = -1;
+        mSensorHandleStepCounter = -1;
     }
-    ALOGI("[JNI] nativeSetStepSimEnabled: enabled=%d, step_sim_enabled=%d, route_active=%d, isMocking=%d",
+    ALOGI("[JNI] nativeSetStepSimEnabled EXIT: enabled=%d, step_sim_enabled=%d, route_active=%d, isMocking=%d",
           enabled ? 1 : 0, step_sim_enabled, route_simulation_active ? 1 : 0, isMocking);
+}
+
+JNIEXPORT void JNICALL
+Java_com_kail_location_root_NativeSensorHook_nativeReset(
+    JNIEnv* env,
+    jclass clazz
+) {
+    ALOGI("[JNI] nativeReset ENTRY: step_sim_enabled=%d, route_active=%d, isMocking=%d, hook_installed=%d",
+          step_sim_enabled, route_simulation_active ? 1 : 0, isMocking, send_objects_hook_installed ? 1 : 0);
+
+    step_sim_enabled = 0;
+    route_simulation_active = false;
+    isMocking = 0;
+    step_event_counter = 0;
+    last_step_inject_ns = 0;
+    stepdetectorTrigger = 0;
+    stepcounterTrigger = 0;
+    mSensorHandleStepDetector = -1;
+    mSensorHandleStepCounter = -1;
+    current_spm = 120.0f;
+
+    ALOGI("[JNI] nativeReset EXIT: simulation disabled, hooks remain active but passthrough");
 }
 
 JNIEXPORT void JNICALL
@@ -447,6 +522,15 @@ Java_com_kail_location_root_NativeSensorHook_nativeInitHook(
     jboolean enable
 ) {
     ALOGI("[JNI] nativeInitHook ENTRY: spm=%.1f, mode=%d, scheme=%d, enable=%d", spm, mode, scheme, enable != JNI_FALSE);
+    ALOGI("[JNI] nativeInitHook STATE BEFORE: send_offset=0x%llx, convert_offset=0x%llx, hook_installed=%d",
+          (unsigned long long)send_objects_offset, (unsigned long long)convert_to_sensor_event_offset, send_objects_hook_installed ? 1 : 0);
+
+    // 打印标志位
+    ALOGI("[JNI] >>> DEBUG: Before install check. send_objects_hook_installed=%d, convert_to_sensor_event_hook_installed=%d",
+          send_objects_hook_installed, convert_to_sensor_event_hook_installed);
+
+
+
     gait::SensorSimulator::Get().Init();
 
     current_spm = spm;
@@ -474,28 +558,28 @@ Java_com_kail_location_root_NativeSensorHook_nativeInitHook(
 // 与 root 模块共享相同的 native 实现
 // ============================================================
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_locationxposed_xposed_sensor_NativeSensorHook_nativeSetWriteOffset(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jlong offset
 ) {
     Java_com_kail_location_root_NativeSensorHook_nativeSetWriteOffset(env, clazz, offset);
 }
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_locationxposed_xposed_sensor_NativeSensorHook_nativeSetConvertOffset(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jlong offset
 ) {
     Java_com_kail_location_root_NativeSensorHook_nativeSetConvertOffset(env, clazz, offset);
 }
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_locationxposed_xposed_sensor_NativeSensorHook_nativeSetRouteSimulation(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jboolean active,
     jfloat spm,
     jint mode
@@ -503,55 +587,8 @@ Java_com_kail_locationxposed_xposed_sensor_NativeSensorHook_nativeSetRouteSimula
     Java_com_kail_location_root_NativeSensorHook_nativeSetRouteSimulation(env, clazz, active, spm, mode);
 }
 
-JNIEXPORT void JNICALL 
-Java_com_kail_locationxposed_xposed_sensor_NativeSensorHook_nativeSetGaitParams(
-    JNIEnv* env, 
-    jclass clazz, 
-    jfloat spm, 
-    jint mode,
-    jint scheme,
-    jboolean enable
-) {
-    Java_com_kail_location_root_NativeSensorHook_nativeSetGaitParams(env, clazz, spm, mode, scheme, enable);
-}
-
-JNIEXPORT jboolean JNICALL 
-Java_com_kail_locationxposed_xposed_sensor_NativeSensorHook_nativeReloadConfig(
-    JNIEnv* env, 
-    jclass clazz
-) {
-    return Java_com_kail_location_root_NativeSensorHook_nativeReloadConfig(env, clazz);
-}
-
-JNIEXPORT void JNICALL 
-Java_com_kail_locationxposed_xposed_sensor_NativeSensorHook_nativeSetMocking(
-    JNIEnv* env, 
-    jclass clazz, 
-    jint mocking
-) {
-    Java_com_kail_location_root_NativeSensorHook_nativeSetMocking(env, clazz, mocking);
-}
-
-JNIEXPORT void JNICALL 
-Java_com_kail_locationxposed_xposed_sensor_NativeSensorHook_nativeSetAuthorized(
-    JNIEnv* env, 
-    jclass clazz, 
-    jint authorized
-) {
-    Java_com_kail_location_root_NativeSensorHook_nativeSetAuthorized(env, clazz, authorized);
-}
-
-JNIEXPORT void JNICALL 
-Java_com_kail_locationxposed_xposed_sensor_NativeSensorHook_nativeSetStepSimEnabled(
-    JNIEnv* env, 
-    jclass clazz, 
-    jboolean enabled
-) {
-    Java_com_kail_location_root_NativeSensorHook_nativeSetStepSimEnabled(env, clazz, enabled);
-}
-
 JNIEXPORT void JNICALL
-Java_com_kail_locationxposed_xposed_sensor_NativeSensorHook_nativeInitHook(
+Java_com_kail_locationxposed_xposed_sensor_NativeSensorHook_nativeSetGaitParams(
     JNIEnv* env,
     jclass clazz,
     jfloat spm,
@@ -559,7 +596,50 @@ Java_com_kail_locationxposed_xposed_sensor_NativeSensorHook_nativeInitHook(
     jint scheme,
     jboolean enable
 ) {
-    Java_com_kail_location_root_NativeSensorHook_nativeInitHook(env, clazz, spm, mode, scheme, enable);
+    Java_com_kail_location_root_NativeSensorHook_nativeSetGaitParams(env, clazz, spm, mode, scheme, enable);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_kail_locationxposed_xposed_sensor_NativeSensorHook_nativeReloadConfig(
+    JNIEnv* env,
+    jclass clazz
+) {
+    return Java_com_kail_location_root_NativeSensorHook_nativeReloadConfig(env, clazz);
+}
+
+JNIEXPORT void JNICALL
+Java_com_kail_locationxposed_xposed_sensor_NativeSensorHook_nativeSetMocking(
+    JNIEnv* env,
+    jclass clazz,
+    jint mocking
+) {
+    Java_com_kail_location_root_NativeSensorHook_nativeSetMocking(env, clazz, mocking);
+}
+
+JNIEXPORT void JNICALL
+Java_com_kail_locationxposed_xposed_sensor_NativeSensorHook_nativeSetAuthorized(
+    JNIEnv* env,
+    jclass clazz,
+    jint authorized
+) {
+    Java_com_kail_location_root_NativeSensorHook_nativeSetAuthorized(env, clazz, authorized);
+}
+
+JNIEXPORT void JNICALL
+Java_com_kail_locationxposed_xposed_sensor_NativeSensorHook_nativeSetStepSimEnabled(
+    JNIEnv* env,
+    jclass clazz,
+    jboolean enabled
+) {
+    Java_com_kail_location_root_NativeSensorHook_nativeSetStepSimEnabled(env, clazz, enabled);
+}
+
+JNIEXPORT void JNICALL
+Java_com_kail_locationxposed_xposed_sensor_NativeSensorHook_nativeReset(
+    JNIEnv* env,
+    jclass clazz
+) {
+    Java_com_kail_location_root_NativeSensorHook_nativeReset(env, clazz);
 }
 
 JNIEXPORT void JNICALL
@@ -579,28 +659,28 @@ Java_com_kail_locationxposed_xposed_sensor_NativeSensorHook_nativeInit(
 // 与 root 模块共享相同的 native 实现
 // ============================================================
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_location_xposed_core_FakeLocState_nativeSetWriteOffset(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jlong offset
 ) {
     Java_com_kail_location_root_NativeSensorHook_nativeSetWriteOffset(env, clazz, offset);
 }
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_location_xposed_core_FakeLocState_nativeSetConvertOffset(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jlong offset
 ) {
     Java_com_kail_location_root_NativeSensorHook_nativeSetConvertOffset(env, clazz, offset);
 }
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_location_xposed_core_FakeLocState_nativeSetRouteSimulation(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jboolean active,
     jfloat spm,
     jint mode
@@ -608,11 +688,11 @@ Java_com_kail_location_xposed_core_FakeLocState_nativeSetRouteSimulation(
     Java_com_kail_location_root_NativeSensorHook_nativeSetRouteSimulation(env, clazz, active, spm, mode);
 }
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_location_xposed_core_FakeLocState_nativeSetGaitParams(
-    JNIEnv* env, 
-    jclass clazz, 
-    jfloat spm, 
+    JNIEnv* env,
+    jclass clazz,
+    jfloat spm,
     jint mode,
     jint scheme,
     jboolean enable
@@ -620,36 +700,36 @@ Java_com_kail_location_xposed_core_FakeLocState_nativeSetGaitParams(
     Java_com_kail_location_root_NativeSensorHook_nativeSetGaitParams(env, clazz, spm, mode, scheme, enable);
 }
 
-JNIEXPORT jboolean JNICALL 
+JNIEXPORT jboolean JNICALL
 Java_com_kail_location_xposed_core_FakeLocState_nativeReloadConfig(
-    JNIEnv* env, 
+    JNIEnv* env,
     jclass clazz
 ) {
     return Java_com_kail_location_root_NativeSensorHook_nativeReloadConfig(env, clazz);
 }
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_location_xposed_core_FakeLocState_nativeSetMocking(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jint mocking
 ) {
     Java_com_kail_location_root_NativeSensorHook_nativeSetMocking(env, clazz, mocking);
 }
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_location_xposed_core_FakeLocState_nativeSetAuthorized(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jint authorized
 ) {
     Java_com_kail_location_root_NativeSensorHook_nativeSetAuthorized(env, clazz, authorized);
 }
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_location_xposed_core_FakeLocState_nativeSetStepSimEnabled(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jboolean enabled
 ) {
     Java_com_kail_location_root_NativeSensorHook_nativeSetStepSimEnabled(env, clazz, enabled);
@@ -684,28 +764,28 @@ Java_com_kail_location_xposed_core_FakeLocState_nativeInit(
 // 注意包名差异: locationxposed 而非 location.xposed
 // ============================================================
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_locationxposed_xposed_core_FakeLocState_nativeSetWriteOffset(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jlong offset
 ) {
     Java_com_kail_location_root_NativeSensorHook_nativeSetWriteOffset(env, clazz, offset);
 }
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_locationxposed_xposed_core_FakeLocState_nativeSetConvertOffset(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jlong offset
 ) {
     Java_com_kail_location_root_NativeSensorHook_nativeSetConvertOffset(env, clazz, offset);
 }
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_locationxposed_xposed_core_FakeLocState_nativeSetRouteSimulation(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jboolean active,
     jfloat spm,
     jint mode
@@ -713,11 +793,11 @@ Java_com_kail_locationxposed_xposed_core_FakeLocState_nativeSetRouteSimulation(
     Java_com_kail_location_root_NativeSensorHook_nativeSetRouteSimulation(env, clazz, active, spm, mode);
 }
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_locationxposed_xposed_core_FakeLocState_nativeSetGaitParams(
-    JNIEnv* env, 
-    jclass clazz, 
-    jfloat spm, 
+    JNIEnv* env,
+    jclass clazz,
+    jfloat spm,
     jint mode,
     jint scheme,
     jboolean enable
@@ -725,36 +805,36 @@ Java_com_kail_locationxposed_xposed_core_FakeLocState_nativeSetGaitParams(
     Java_com_kail_location_root_NativeSensorHook_nativeSetGaitParams(env, clazz, spm, mode, scheme, enable);
 }
 
-JNIEXPORT jboolean JNICALL 
+JNIEXPORT jboolean JNICALL
 Java_com_kail_locationxposed_xposed_core_FakeLocState_nativeReloadConfig(
-    JNIEnv* env, 
+    JNIEnv* env,
     jclass clazz
 ) {
     return Java_com_kail_location_root_NativeSensorHook_nativeReloadConfig(env, clazz);
 }
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_locationxposed_xposed_core_FakeLocState_nativeSetMocking(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jint mocking
 ) {
     Java_com_kail_location_root_NativeSensorHook_nativeSetMocking(env, clazz, mocking);
 }
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_locationxposed_xposed_core_FakeLocState_nativeSetAuthorized(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jint authorized
 ) {
     Java_com_kail_location_root_NativeSensorHook_nativeSetAuthorized(env, clazz, authorized);
 }
 
-JNIEXPORT void JNICALL 
+JNIEXPORT void JNICALL
 Java_com_kail_locationxposed_xposed_core_FakeLocState_nativeSetStepSimEnabled(
-    JNIEnv* env, 
-    jclass clazz, 
+    JNIEnv* env,
+    jclass clazz,
     jboolean enabled
 ) {
     Java_com_kail_location_root_NativeSensorHook_nativeSetStepSimEnabled(env, clazz, enabled);

@@ -2,6 +2,7 @@ package com.kail.location.views.common
 
 import android.widget.ImageView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -15,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.kail.location.R
+import com.kail.location.auth.AuthManager
 
 /**
  * Composable function for the navigation drawer header.
@@ -23,33 +25,51 @@ import com.kail.location.R
  * @param version The app version string to display.
  */
 @Composable
-fun DrawerHeader(version: String) {
+fun DrawerHeader(version: String, onLoginClick: (() -> Unit)? = null) {
+    val isLoggedIn = AuthManager.isLoggedIn
+    val userEmail = AuthManager.email ?: ""
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.primaryContainer)
             .padding(16.dp)
     ) {
-        AndroidView(
-            factory = { context ->
-                ImageView(context).apply {
-                    setImageResource(R.mipmap.ic_launcher_round)
-                }
-            },
-            modifier = Modifier.size(64.dp)
-        )
-        Spacer(modifier = Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = stringResource(R.string.app_name),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+            AndroidView(
+                factory = { context ->
+                    ImageView(context).apply {
+                        setImageResource(R.mipmap.ic_launcher_round)
+                    }
+                },
+                modifier = Modifier.size(64.dp)
             )
-            Spacer(modifier = Modifier.weight(1f))
-            Text(
-                text = version,
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(R.string.app_name),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                if (isLoggedIn) {
+                    Text(
+                        text = userEmail,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                } else {
+                    Text(
+                        text = stringResource(R.string.drawer_not_logged_in),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier
+                            .clickable { onLoginClick?.invoke() }
+                    )
+                }
+            }
         }
         Spacer(modifier = Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {

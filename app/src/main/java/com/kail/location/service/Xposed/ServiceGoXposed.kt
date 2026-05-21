@@ -378,8 +378,7 @@ class ServiceGoXposed : Service() {
                     KailLog.e(this, "ServiceGoXposed", "SO not loaded in system_server")
                 }
             } else {
-                KailLog.i(this, "ServiceGoXposed", ">>> Step disabled, sending disable command")
-                NativeSensorHook.setStepSimEnabled(false)
+                KailLog.i(this, "ServiceGoXposed", ">>> Step disabled")
             }
 
             val stepExtras = Bundle().apply {
@@ -534,6 +533,7 @@ class ServiceGoXposed : Service() {
 
             // Stop Xposed module
             sendXposedCommand("stop")
+            // NativeSensorHook.reset() // Removed: Xposed module handles cleanup via "stop" command
 
             mNotificationHelper.stopForeground()
         } catch (e: Exception) {

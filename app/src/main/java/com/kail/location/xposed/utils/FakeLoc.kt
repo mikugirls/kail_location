@@ -11,6 +11,11 @@ import kotlin.math.sqrt
 import kotlin.random.Random
 
 object FakeLoc {
+    private val jitterRandom = java.util.Random()
+    private var jitterDriftNorthMeters = 0.0
+    private var jitterDriftEastMeters = 0.0
+    private var lastJitterTimeMs = 0L
+
     /**
      * 是否允许打印日志
      */
@@ -96,6 +101,12 @@ object FakeLoc {
     var loopBroadcastLocation = false
 
     /**
+     * 自然 GPS 抖动。关闭时固定点/路线点不再叠加动态随机游走。
+     */
+    @Volatile
+    var enableNaturalJitter = false
+
+    /**
      * 位置上报间隔（毫秒），仅用于部分需要控制频率的场景
      */
     var reportIntervalMs = 200
@@ -160,13 +171,33 @@ object FakeLoc {
     }
 
     fun jitterLocation(lat: Double = latitude, lon: Double = longitude, n: Double = Random.nextDouble(0.0, accuracy.toDouble()), angle: Double = bearing): Pair<Double, Double> {
+        if (!enableNaturalJitter) {
+            jitterDriftNorthMeters = 0.0
+            jitterDriftEastMeters = 0.0
+            lastJitterTimeMs = 0L
+            return Pair(lat, lon)
+        }
+
         val earthRadius = 6371000.0
-        val radiusInDegrees = n / 15 / earthRadius * (180 / PI)
+        val now = System.currentTimeMillis()
+        val dt = if (lastJitterTimeMs > 0L) {
+            ((now - lastJitterTimeMs) / 1000.0).coerceIn(0.01, 5.0)
+        } else {
+            1.0
+        }
+        lastJitterTimeMs = now
 
-        val jitterAngle = if (Random.nextBoolean()) angle + 45 else angle - 45
+        val sigma = (accuracy / 120.0).coerceIn(0.02, 0.25)
+        val alpha = 0.45
+        jitterDriftNorthMeters += sigma * sqrt(dt) * jitterRandom.nextGaussian() - alpha * jitterDriftNorthMeters * dt
+        jitterDriftEastMeters += sigma * sqrt(dt) * jitterRandom.nextGaussian() - alpha * jitterDriftEastMeters * dt
 
-        val newLat = lat + radiusInDegrees * cos(Math.toRadians(jitterAngle))
-        val newLon = lon + radiusInDegrees * sin(Math.toRadians(jitterAngle)) / cos(Math.toRadians(lat))
+        val maxDrift = accuracy.coerceAtLeast(1.0f).toDouble()
+        jitterDriftNorthMeters = jitterDriftNorthMeters.coerceIn(-maxDrift, maxDrift)
+        jitterDriftEastMeters = jitterDriftEastMeters.coerceIn(-maxDrift, maxDrift)
+
+        val newLat = lat + (jitterDriftNorthMeters / earthRadius) * (180 / PI)
+        val newLon = lon + (jitterDriftEastMeters / earthRadius) * (180 / PI) / cos(Math.toRadians(lat))
 
         return Pair(newLat, newLon)
     }

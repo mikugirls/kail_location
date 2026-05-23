@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -12,12 +14,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kail.location.R
+import com.kail.location.utils.KailLog
 import com.kail.location.viewmodels.SettingsViewModel
 import com.kail.location.xposed.core.FakeLocState
 
@@ -35,6 +39,22 @@ fun SettingsScreen(
     onBackClick: () -> Unit
 ) {
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
+    var logCacheSize by remember { mutableStateOf(KailLog.getLogCacheSizeBytes(context)) }
+    var showClearLogDialog by remember { mutableStateOf(false) }
+    val exportLogLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        if (uri != null) {
+            val ok = KailLog.exportLogs(context, uri)
+            android.widget.Toast.makeText(
+                context,
+                if (ok) context.getString(R.string.setting_export_log_success) else context.getString(R.string.setting_export_log_failed),
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
+        logCacheSize = KailLog.getLogCacheSizeBytes(context)
+    }
 
     // State observation
     val joystickType by viewModel.joystickType.collectAsState()
@@ -50,6 +70,7 @@ fun SettingsScreen(
     val latOffset by viewModel.latOffset.collectAsState()
     val lonOffset by viewModel.lonOffset.collectAsState()
     val logEnabled by viewModel.logEnabled.collectAsState()
+    val debugLogEnabled by viewModel.debugLogEnabled.collectAsState()
     val historyExpiration by viewModel.historyExpiration.collectAsState()
     val baiduMapKey by viewModel.baiduMapKey.collectAsState()
     val mapZoom by viewModel.mapZoom.collectAsState()
@@ -65,6 +86,7 @@ fun SettingsScreen(
     val downgradeToCdma by viewModel.downgradeToCdma.collectAsState()
     val disableWifiScan by viewModel.disableWifiScan.collectAsState()
     val loopBroadcast by viewModel.loopBroadcast.collectAsState()
+    val naturalJitter by viewModel.naturalJitter.collectAsState()
     val hideMock by viewModel.hideMock.collectAsState()
     val simScheme by viewModel.simScheme.collectAsState()
     val stepSimEnabled by viewModel.stepSimEnabled.collectAsState()
@@ -139,7 +161,8 @@ fun SettingsScreen(
             EditTextPreference(
                 title = stringResource(R.string.setting_accuracy_title),
                 value = accuracy,
-                onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_ACCURACY, it) }
+                onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_ACCURACY, it) },
+                description = stringResource(R.string.setting_accuracy_summary)
             )
 
             EditTextPreference(
@@ -299,6 +322,13 @@ fun SettingsScreen(
                 summary = stringResource(R.string.setting_anti_pullback_summary)
             )
 
+            SwitchPreference(
+                title = stringResource(R.string.setting_natural_jitter),
+                checked = naturalJitter,
+                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_NATURAL_JITTER, it) },
+                summary = stringResource(R.string.setting_natural_jitter_summary)
+            )
+
             // ===== Group: 日志/其他 =====
             PreferenceCategory(title = stringResource(R.string.setting_group_other))
 
@@ -313,6 +343,28 @@ fun SettingsScreen(
                 checked = logEnabled,
                 onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_LOG_ENABLED, it) },
                 summary = stringResource(R.string.setting_enable_log_summary)
+            )
+
+            SwitchPreference(
+                title = stringResource(R.string.setting_enable_debug_log),
+                checked = debugLogEnabled,
+                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_DEBUG_LOG_ENABLED, it) },
+                summary = stringResource(R.string.setting_enable_debug_log_summary)
+            )
+
+            ActionPreference(
+                title = stringResource(R.string.setting_export_log),
+                summary = stringResource(R.string.setting_export_log_summary),
+                onClick = { exportLogLauncher.launch("kail_location_logs.txt") }
+            )
+
+            ActionPreference(
+                title = stringResource(R.string.setting_clear_log_cache),
+                summary = stringResource(R.string.setting_clear_log_cache_summary, formatBytes(logCacheSize)),
+                onClick = {
+                    logCacheSize = KailLog.getLogCacheSizeBytes(context)
+                    showClearLogDialog = true
+                }
             )
 
             EditTextPreference(
@@ -334,6 +386,41 @@ fun SettingsScreen(
             )
         }
     }
+
+    if (showClearLogDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearLogDialog = false },
+            title = { Text(stringResource(R.string.setting_clear_log_cache)) },
+            text = { Text(stringResource(R.string.setting_clear_log_cache_confirm, formatBytes(logCacheSize))) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val ok = KailLog.clearLogCache(context)
+                        logCacheSize = KailLog.getLogCacheSizeBytes(context)
+                        showClearLogDialog = false
+                        android.widget.Toast.makeText(
+                            context,
+                            if (ok) context.getString(R.string.setting_clear_log_cache_success) else context.getString(R.string.setting_clear_log_cache_failed),
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                ) { Text(stringResource(R.string.setting_ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearLogDialog = false }) {
+                    Text(stringResource(R.string.setting_cancel))
+                }
+            }
+        )
+    }
+}
+
+private fun formatBytes(bytes: Long): String {
+    if (bytes < 1024L) return "$bytes B"
+    val kb = bytes / 1024.0
+    if (kb < 1024.0) return String.format(java.util.Locale.US, "%.1f KB", kb)
+    val mb = kb / 1024.0
+    return String.format(java.util.Locale.US, "%.2f MB", mb)
 }
 
 /**
@@ -369,6 +456,19 @@ fun SwitchPreference(
             )
         },
         modifier = Modifier.clickable { onCheckedChange(!checked) }
+    )
+}
+
+@Composable
+fun ActionPreference(
+    title: String,
+    summary: String? = null,
+    onClick: () -> Unit
+) {
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = summary?.let { { Text(it) } },
+        modifier = Modifier.clickable { onClick() }
     )
 }
 

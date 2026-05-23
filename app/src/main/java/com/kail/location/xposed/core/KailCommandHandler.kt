@@ -51,6 +51,7 @@ internal object KailCommandHandler {
                 FakeLoc.enableNMEA = false
                 FakeLoc.enableAGPS = false
                 FakeLoc.loopBroadcastLocation = false
+                FakeLoc.enableNaturalJitter = false
                 FakeLoc.disableGetCurrentLocation = false
                 FakeLoc.disableRegisterLocationListener = false
                 FakeLoc.disableRequestGeofence = false
@@ -187,10 +188,19 @@ internal object KailCommandHandler {
                     out.getBoolean("hookWifi", FakeLoc.hookWifi).let { FakeLoc.hookWifi = it }
                     out.getBoolean("needDowngradeToCdma", FakeLoc.needDowngradeToCdma).let { FakeLoc.needDowngradeToCdma = it }
                     out.getBoolean("loopBroadcastLocation", FakeLoc.loopBroadcastLocation).let { FakeLoc.loopBroadcastLocation = it }
+                    out.getBoolean("enableNaturalJitter", FakeLoc.enableNaturalJitter).let { FakeLoc.enableNaturalJitter = it }
                     out.getInt("minSatellites", FakeLoc.minSatellites).let { FakeLoc.minSatellites = it }
                     out.getFloat("accuracy", FakeLoc.accuracy).let { FakeLoc.accuracy = it }
                     out.getInt("reportIntervalMs", 200).let {
-                        FakeLoc.reportIntervalMs = it.coerceAtLeast(200)
+                        FakeLoc.reportIntervalMs = it
+                    }
+                    out.getBoolean("enableFileLog", FakeLoc.enableLog).let {
+                        FakeLoc.enableLog = it
+                        KailLog.fileLogEnabled = it
+                    }
+                    out.getBoolean("enableDebugLog", FakeLoc.enableDebugLog).let {
+                        FakeLoc.enableDebugLog = it
+                        KailLog.detailedLogEnabled = it
                     }
                     out.putBoolean("ok", true)
                     KailLog.d(null, "XPOSED", "KAIL接收：批量配置更新")

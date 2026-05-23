@@ -116,7 +116,14 @@
             android:name="com.kail.location.views.welcome.WelcomeActivity"
             android:exported="true"
             android:theme="@style/AppTheme.NoActionBar"
-            >
+            />
+
+        <activity
+            android:name="com.kail.location.views.locationsimulation.LocationSimulationActivity"
+            android:label="@string/loc_sim_title"
+            android:exported="true"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:screenOrientation="portrait" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -127,13 +134,6 @@
             android:name="com.kail.location.views.locationpicker.LocationPickerActivity"
             android:exported="false"
             android:theme="@style/AppTheme.NoActionBar" />
-
-        <activity
-            android:name="com.kail.location.views.locationsimulation.LocationSimulationActivity"
-            android:label="@string/loc_sim_title"
-            android:exported="false"
-            android:theme="@style/AppTheme.NoActionBar"
-            android:screenOrientation="portrait" />
 
         <activity
             android:name="com.kail.location.views.settings.SettingsActivity"

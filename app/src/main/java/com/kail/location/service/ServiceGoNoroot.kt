@@ -70,8 +70,7 @@ class ServiceGoNoroot : Service() {
         const val DEFAULT_BEA = 0.0f
 
         private const val HANDLER_MSG_ID = 0
-        private const val LOCATION_UPDATE_INTERVAL_MS = 200L
-        private const val LOCATION_UPDATE_INTERVAL_SECONDS = LOCATION_UPDATE_INTERVAL_MS / 1000.0
+        private const val DEFAULT_LOCATION_UPDATE_INTERVAL_MS = 200L
         private const val SERVICE_GO_HANDLER_NAME = "ServiceGoNorootLocation"
 
         private const val SERVICE_GO_NOTE_ID = 1
@@ -380,10 +379,10 @@ class ServiceGoNoroot : Service() {
 
             isStop = true
             if (this::mLocHandler.isInitialized) {
-                mLocHandler.removeMessages(HANDLER_MSG_ID)
+                mLocHandler.removeCallbacksAndMessages(null)
             }
             if (this::mLocHandlerThread.isInitialized) {
-                mLocHandlerThread.quit()
+                mLocHandlerThread.quitSafely()
             }
 
             if (this::mJoystickManager.isInitialized) {
@@ -508,7 +507,8 @@ class ServiceGoNoroot : Service() {
                             } else {
                                 mSpeed
                             }
-                            advanceAlongRoute(speedForStep * LOCATION_UPDATE_INTERVAL_SECONDS)
+                            val intervalMs = currentLocationUpdateIntervalMs()
+                            advanceAlongRoute(speedForStep * (intervalMs / 1000.0))
                             updateJoystickStatus()
                         }
                     }
@@ -518,18 +518,26 @@ class ServiceGoNoroot : Service() {
                         setLocationGPS()
                     }
 
-                    sendEmptyMessageDelayed(HANDLER_MSG_ID, LOCATION_UPDATE_INTERVAL_MS)
+                    if (!isStop) {
+                        sendEmptyMessageDelayed(HANDLER_MSG_ID, currentLocationUpdateIntervalMs())
+                    }
                 } catch (e: InterruptedException) {
                     KailLog.e(this@ServiceGoNoroot, "ServiceGoNoroot", "handleMessage interrupted: ${e.message}")
                     Thread.currentThread().interrupt()
                 } catch (e: Exception) {
                     KailLog.e(this@ServiceGoNoroot, "ServiceGoNoroot", "handleMessage exception: ${e.message}")
                     if (!isStop) {
-                        sendEmptyMessageDelayed(HANDLER_MSG_ID, LOCATION_UPDATE_INTERVAL_MS)
+                        sendEmptyMessageDelayed(HANDLER_MSG_ID, currentLocationUpdateIntervalMs())
                     }
                 }
             }
         }
+    }
+
+    private fun currentLocationUpdateIntervalMs(): Long {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        return (prefs.getString("setting_report_interval", DEFAULT_LOCATION_UPDATE_INTERVAL_MS.toString())?.toLongOrNull()
+            ?: DEFAULT_LOCATION_UPDATE_INTERVAL_MS).coerceAtLeast(0L)
     }
 
     private fun startLocationLoop() {

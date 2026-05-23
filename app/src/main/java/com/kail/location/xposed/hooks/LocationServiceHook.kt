@@ -46,6 +46,8 @@ private const val MEO_MAX_CN0 = 40.0f
 private const val BDS_B1I_FREQ = 1561.098f // MHz
 private const val BDS_B2I_FREQ = 1207.140f
 private const val BDS_B3I_FREQ = 1268.520f
+private const val MAX_TRACKED_GNSS_LISTENERS = 128
+private const val MAX_TRACKED_LOCATION_LISTENERS = 256
 
 private val satelliteList = listOf(
     BDSSatellite(1, OrbitType.GEO),
@@ -304,8 +306,16 @@ private val gnssPushRunnable = object : Runnable {
                 }
             }
         }
+        trimGnssListenersIfNeeded()
 
         gnssPushHandler.postDelayed(this, 1000)
+    }
+}
+
+private fun trimGnssListenersIfNeeded() {
+    if (activeGnssListeners.size <= MAX_TRACKED_GNSS_LISTENERS) return
+    activeGnssListeners.take(activeGnssListeners.size - MAX_TRACKED_GNSS_LISTENERS).forEach {
+        activeGnssListeners.remove(it)
     }
 }
 
@@ -325,7 +335,7 @@ internal object LocationServiceHook: BaseLocationHook() {
                     KailLog.e(null, "Kail_Xposed", "Pullback broadcast failed: ${it.message}")
                 }
             }
-            pullbackPushHandler.postDelayed(this, FakeLoc.reportIntervalMs.coerceAtLeast(200).toLong())
+            pullbackPushHandler.postDelayed(this, FakeLoc.reportIntervalMs.toLong())
         }
     }
 
@@ -625,6 +635,7 @@ internal object LocationServiceHook: BaseLocationHook() {
                     }
 
                     // 保存 listener 用于主动推送
+                    trimGnssListenersIfNeeded()
                     activeGnssListeners.add(callback)
                     if (!gnssPushStarted) {
                         gnssPushStarted = true
@@ -1012,6 +1023,7 @@ internal object LocationServiceHook: BaseLocationHook() {
             }
         }
         kotlin.runCatching { binder.linkToDeath(mDeathRecipient, 0) }
+        trimLocationListenersIfNeeded()
         if (locationListeners.none { it.second.asBinder() == binder }) {
             locationListeners.add(provider to listener)
         }
@@ -1028,6 +1040,12 @@ internal object LocationServiceHook: BaseLocationHook() {
 
     private fun removeLocationListenerByBinder(binder: IBinder) {
         locationListeners.removeIf { it.second.asBinder() == binder }
+    }
+
+    private fun trimLocationListenersIfNeeded() {
+        while (locationListeners.size >= MAX_TRACKED_LOCATION_LISTENERS) {
+            locationListeners.poll() ?: break
+        }
     }
 
     fun callOnLocationChanged() {

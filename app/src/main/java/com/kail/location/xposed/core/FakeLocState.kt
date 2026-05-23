@@ -15,7 +15,7 @@ internal object FakeLocState {
     private val speedRef = AtomicReference(0f)
     private val bearingRef = AtomicReference(0f)
     private val altitudeRef = AtomicReference(0.0)
-    private val accuracyRef = AtomicReference(25.0f)
+    private val accuracyRef = AtomicReference(2.5f)
     private val stepEnabledRef = AtomicReference(false)
     private val stepCadenceSpmRef = AtomicReference(120f)
     private val gaitModeRef = AtomicReference(0)

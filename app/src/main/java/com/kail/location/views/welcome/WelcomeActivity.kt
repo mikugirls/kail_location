@@ -277,20 +277,6 @@ class WelcomeActivity : AppCompatActivity() {
      */
     private fun startMainActivity(isChecked: Boolean) {
         if (hasStartedMainActivity) return
-        if (!isChecked) {
-            GoUtils.DisplayToast(this, getString(R.string.app_error_agreement))
-            return
-        }
-
-        if (!GoUtils.isNetworkAvailable(this)) {
-            GoUtils.DisplayToast(this, getString(R.string.app_error_network))
-            return
-        }
-
-        if (!GoUtils.isGpsOpened(this)) {
-            GoUtils.DisplayToast(this, getString(R.string.app_error_gps))
-            return
-        }
 
         if (!isPermission) {
             checkDefaultPermissions()

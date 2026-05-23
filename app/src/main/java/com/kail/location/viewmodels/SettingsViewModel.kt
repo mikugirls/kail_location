@@ -57,9 +57,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_DISABLE_WIFI_SCAN = "setting_disable_wifi_scan"
         const val KEY_LOOP_BROADCAST = "setting_loop_broadcast"
         const val KEY_HIDE_MOCK = "setting_hide_mock"
+        const val KEY_NATURAL_JITTER = "setting_natural_jitter"
 
         // 日志/其他
         const val KEY_LOG_ENABLED = "setting_log_enabled"
+        const val KEY_DEBUG_LOG_ENABLED = "setting_debug_log_enabled"
         const val KEY_HISTORY_EXPIRATION = "setting_history_expiration"
         const val KEY_BAIDU_MAP_KEY = "setting_baidu_map_key"
         const val KEY_MAP_ZOOM = "setting_map_zoom"
@@ -101,6 +103,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _logEnabled = MutableStateFlow(prefs.getBoolean(KEY_LOG_ENABLED, false))
     val logEnabled: StateFlow<Boolean> = _logEnabled.asStateFlow()
 
+    private val _debugLogEnabled = MutableStateFlow(prefs.getBoolean(KEY_DEBUG_LOG_ENABLED, false))
+    val debugLogEnabled: StateFlow<Boolean> = _debugLogEnabled.asStateFlow()
+
     private val _historyExpiration = MutableStateFlow(prefs.getString(KEY_HISTORY_EXPIRATION, "7.0") ?: "7.0")
     val historyExpiration: StateFlow<String> = _historyExpiration.asStateFlow()
 
@@ -114,7 +119,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _mockSpeed = MutableStateFlow(prefs.getString(KEY_MOCK_SPEED, "3.05") ?: "3.05")
     val mockSpeed: StateFlow<String> = _mockSpeed.asStateFlow()
 
-    private val _accuracy = MutableStateFlow(prefs.getString(KEY_ACCURACY, "25.0") ?: "25.0")
+    private val _accuracy = MutableStateFlow(prefs.getString(KEY_ACCURACY, "2.5") ?: "2.5")
     val accuracy: StateFlow<String> = _accuracy.asStateFlow()
 
     private val _minSatellites = MutableStateFlow(prefs.getString(KEY_MIN_SATELLITES, "12") ?: "12")
@@ -156,6 +161,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _loopBroadcast = MutableStateFlow(prefs.getBoolean(KEY_LOOP_BROADCAST, false))
     val loopBroadcast: StateFlow<Boolean> = _loopBroadcast.asStateFlow()
 
+    private val _naturalJitter = MutableStateFlow(prefs.getBoolean(KEY_NATURAL_JITTER, false))
+    val naturalJitter: StateFlow<Boolean> = _naturalJitter.asStateFlow()
+
     private val _hideMock = MutableStateFlow(prefs.getBoolean(KEY_HIDE_MOCK, true))
     val hideMock: StateFlow<Boolean> = _hideMock.asStateFlow()
 
@@ -181,12 +189,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             KEY_LON_OFFSET -> _lonOffset.value = sharedPreferences.getString(key, "10.0") ?: "10.0"
             KEY_RANDOM_OFFSET -> _randomOffset.value = sharedPreferences.getBoolean(key, false)
             KEY_LOG_ENABLED -> _logEnabled.value = sharedPreferences.getBoolean(key, false)
+            KEY_DEBUG_LOG_ENABLED -> _debugLogEnabled.value = sharedPreferences.getBoolean(key, false)
             KEY_HISTORY_EXPIRATION -> _historyExpiration.value = sharedPreferences.getString(key, "7.0") ?: "7.0"
             KEY_MAP_ZOOM -> _mapZoom.value = sharedPreferences.getString(key, "17") ?: "17"
             KEY_GPS_SATELLITE_SIM -> _gpsSatelliteSim.value = sharedPreferences.getBoolean(key, true)
             // 新增
             KEY_MOCK_SPEED -> _mockSpeed.value = sharedPreferences.getString(key, "3.05") ?: "3.05"
-            KEY_ACCURACY -> _accuracy.value = sharedPreferences.getString(key, "25.0") ?: "25.0"
+            KEY_ACCURACY -> _accuracy.value = sharedPreferences.getString(key, "2.5") ?: "2.5"
             KEY_MIN_SATELLITES -> _minSatellites.value = sharedPreferences.getString(key, "12") ?: "12"
             KEY_REPORT_INTERVAL -> _reportInterval.value = sharedPreferences.getString(key, "200") ?: "200"
             KEY_ENABLE_AGPS -> _enableAGPS.value = sharedPreferences.getBoolean(key, false)
@@ -200,6 +209,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             KEY_DOWNGRADE_TO_CDMA -> _downgradeToCdma.value = sharedPreferences.getBoolean(key, true)
             KEY_DISABLE_WIFI_SCAN -> _disableWifiScan.value = sharedPreferences.getBoolean(key, true)
             KEY_LOOP_BROADCAST -> _loopBroadcast.value = sharedPreferences.getBoolean(key, false)
+            KEY_NATURAL_JITTER -> _naturalJitter.value = sharedPreferences.getBoolean(key, false)
             KEY_HIDE_MOCK -> _hideMock.value = sharedPreferences.getBoolean(key, true)
             KEY_SIM_SCHEME -> _simScheme.value = sharedPreferences.getString(key, "0") ?: "0"
             KEY_STEP_SIM_ENABLED -> _stepSimEnabled.value = sharedPreferences.getBoolean(key, true)
@@ -243,9 +253,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             putBoolean("hookWifi", _disableWifiScan.value)
             putBoolean("needDowngradeToCdma", _downgradeToCdma.value)
             putBoolean("loopBroadcastLocation", _loopBroadcast.value)
+            putBoolean("enableNaturalJitter", _naturalJitter.value)
             putInt("minSatellites", _minSatellites.value.toIntOrNull() ?: 12)
-            putFloat("accuracy", _accuracy.value.toFloatOrNull() ?: 25.0f)
-            putInt("reportIntervalMs", (_reportInterval.value.toIntOrNull() ?: 200).coerceAtLeast(200))
+            putFloat("accuracy", _accuracy.value.toFloatOrNull() ?: 2.5f)
+            putInt("reportIntervalMs", _reportInterval.value.toIntOrNull() ?: 200)
+            putBoolean("enableFileLog", _logEnabled.value)
+            putBoolean("enableDebugLog", _debugLogEnabled.value)
         }
     }
 

@@ -5,7 +5,6 @@ import com.baidu.location.LocationClient
 import com.baidu.mapapi.CoordType
 import com.baidu.mapapi.SDKInitializer
 import androidx.preference.PreferenceManager
-import com.google.firebase.FirebaseApp
 import com.kail.location.R
 
 class GoApplication : Application() {
@@ -34,8 +33,6 @@ class GoApplication : Application() {
         super.onCreate()
 
         PreferenceManager.setDefaultValues(this, R.xml.preferences_main, false)
-
-        FirebaseApp.initializeApp(this)
 
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         val logEnabled = prefs.getBoolean("setting_log_enabled", false)

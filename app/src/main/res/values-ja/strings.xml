@@ -60,7 +60,7 @@
     <string name="setting_version">バージョン</string>
     <string name="setting_author">開発者</string>
 
-    <string name="history_expiration">7</string>
+    <string name="history_expiration">9999</string>
     <string name="history_location_default_name">地図の位置</string>
     <string name="history_idle">履歴はありません</string>
     <string name="history_delete_ok">削除しました！</string>

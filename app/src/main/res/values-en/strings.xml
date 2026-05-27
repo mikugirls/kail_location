@@ -80,7 +80,7 @@
     <string name="setting_version">Version</string>
     <string name="setting_author">Developer</string>
 
-    <string name="history_expiration">7</string>
+    <string name="history_expiration">9999</string>
     <string name="history_location_default_name">Map Location</string>
     <string name="history_idle">No history records</string>
     <string name="history_delete_ok">Deleted successfully!</string>

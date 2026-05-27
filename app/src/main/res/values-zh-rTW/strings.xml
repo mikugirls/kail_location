@@ -63,7 +63,7 @@
     <string name="setting_version">版本號</string>
     <string name="setting_author">開發者</string>
 
-    <string name="history_expiration">7</string>
+    <string name="history_expiration">9999</string>
     <string name="history_location_default_name">地圖位置</string>
     <string name="history_idle">暫無歷史紀錄</string>
     <string name="history_delete_ok">刪除成功！</string>

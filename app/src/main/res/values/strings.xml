@@ -256,6 +256,8 @@
     <string name="setting_hide_mock_summary">移除 Location.isFromMockProvider 标记</string>
     <string name="setting_anti_pullback">反定位拉回</string>
     <string name="setting_anti_pullback_summary">持续广播位置，一定程度解决被系统拉回</string>
+    <string name="setting_natural_jitter">自然 GPS 抖动</string>
+    <string name="setting_natural_jitter_summary">在注入位置上叠加漂移，关闭后固定点和路线更稳定</string>
     <string name="setting_group_other">其他</string>
     <string name="setting_global_mode">全局模式 (system_server)</string>
     <string name="setting_global_mode_summary">开启则注入 system_server，对所有应用生效；关闭则仅注入下方指定应用</string>
@@ -265,7 +267,18 @@
     <string name="setting_opencellid_key">OpenCellID API Key</string>
     <string name="setting_opencellid_key_summary">用于通过经纬度查询周边基站，需先在 opencellid.org 注册获取</string>
     <string name="setting_enable_log">启用日志</string>
-    <string name="setting_enable_log_summary">控制控制台输出与本地文件保存</string>
+    <string name="setting_enable_log_summary">写入低频日志与关键状态日志到本地文件</string>
+    <string name="setting_enable_debug_log">启用详细调试日志</string>
+    <string name="setting_enable_debug_log_summary">限流写入高频定位调试日志，可能增加耗电和文件体积，仅用于排查问题</string>
+    <string name="setting_export_log">导出日志</string>
+    <string name="setting_export_log_summary">选择保存位置并导出当前日志文件</string>
+    <string name="setting_export_log_success">日志导出成功</string>
+    <string name="setting_export_log_failed">日志导出失败</string>
+    <string name="setting_clear_log_cache">清除日志缓存</string>
+    <string name="setting_clear_log_cache_summary">当前缓存大小：%s</string>
+    <string name="setting_clear_log_cache_confirm">确认清除日志缓存？当前大小：%s</string>
+    <string name="setting_clear_log_cache_success">日志缓存已清除</string>
+    <string name="setting_clear_log_cache_failed">日志缓存清除失败</string>
     <string name="setting_map_zoom">悬浮窗地图缩放比例</string>
     <string name="setting_map_zoom_summary">范围 10-21，数值越大地图越详细</string>
     <string name="setting_current_version">当前版本</string>
@@ -508,11 +521,12 @@
 
     <!-- Settings remaining -->
     <string name="setting_mock_speed">模拟移动速度 (m/s)</string>
-    <string name="setting_accuracy_title">定位抖动范围 (米)</string>
+    <string name="setting_accuracy_title">定位精度/定位抖动范围 (米)</string>
+    <string name="setting_accuracy_summary">默认 2.5。自然 GPS 抖动关闭时作为定位精度；开启后作为自然 GPS 抖动范围。</string>
     <string name="setting_min_satellites">最少模拟卫星数量</string>
     <string name="setting_min_satellites_summary">仅支持北斗卫星</string>
     <string name="setting_report_interval">上报位置频率 (ms)</string>
-    <string name="setting_report_interval_summary">单位毫秒，默认 100ms</string>
+    <string name="setting_report_interval_summary">单位毫秒，默认 200ms；数值越低，上报越频繁，耗电和负载越高</string>
     <string name="setting_gps_satellite_title">模拟 GPS 卫星信号</string>
     <string name="setting_gps_satellite_summary">伪造北斗卫星数量和信号强度</string>
     <string name="setting_agps_title">启用 AGPS 模块</string>

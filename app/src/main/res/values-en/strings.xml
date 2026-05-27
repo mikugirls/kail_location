@@ -233,6 +233,8 @@
     <string name="setting_hide_mock_summary">Remove Location.isFromMockProvider flag</string>
     <string name="setting_anti_pullback">Anti Location Pullback</string>
     <string name="setting_anti_pullback_summary">Continuously broadcast location to prevent system pullback</string>
+    <string name="setting_natural_jitter">Natural GPS Jitter</string>
+    <string name="setting_natural_jitter_summary">Add drift to injected locations. Turn off for stable fixed points and routes.</string>
     <string name="setting_group_other">Other</string>
     <string name="setting_global_mode">Global Mode (system_server)</string>
     <string name="setting_global_mode_summary">Inject system_server to affect all apps; disable to inject only target apps below</string>
@@ -240,7 +242,18 @@
     <string name="setting_target_packages_summary">Comma-separated, only effective when global mode is off. E.g. com.autonavi.minimap</string>
     <string name="setting_baidu_key">Baidu Map Key (restart required)</string>
     <string name="setting_enable_log">Enable Log</string>
-    <string name="setting_enable_log_summary">Control console output and local file saving</string>
+    <string name="setting_enable_log_summary">Save low-frequency logs and key status logs to local files</string>
+    <string name="setting_enable_debug_log">Enable Detailed Debug Log</string>
+    <string name="setting_enable_debug_log_summary">Throttle and save high-frequency location debug logs. May increase power usage and file size; use only for troubleshooting.</string>
+    <string name="setting_export_log">Export Logs</string>
+    <string name="setting_export_log_summary">Choose a save location and export current log files</string>
+    <string name="setting_export_log_success">Logs exported</string>
+    <string name="setting_export_log_failed">Failed to export logs</string>
+    <string name="setting_clear_log_cache">Clear Log Cache</string>
+    <string name="setting_clear_log_cache_summary">Current cache size: %s</string>
+    <string name="setting_clear_log_cache_confirm">Clear log cache? Current size: %s</string>
+    <string name="setting_clear_log_cache_success">Log cache cleared</string>
+    <string name="setting_clear_log_cache_failed">Failed to clear log cache</string>
     <string name="setting_map_zoom">Floating Window Map Zoom</string>
     <string name="setting_map_zoom_summary">Range 10-21, higher = more detailed</string>
     <string name="setting_current_version">Current Version</string>
@@ -366,11 +379,12 @@
     <!-- Settings additional -->
     <string name="setting_group_satellite_and_signal">Satellite &amp; Signal Simulation</string>
     <string name="setting_mock_speed">Simulated Move Speed (m/s)</string>
-    <string name="setting_accuracy_title">Location Jitter Range (m)</string>
+    <string name="setting_accuracy_title">Location Accuracy/Jitter Range (m)</string>
+    <string name="setting_accuracy_summary">Default 2.5. Used as location accuracy when Natural GPS Jitter is off; used as jitter range when it is on.</string>
     <string name="setting_min_satellites">Min Satellite Count</string>
     <string name="setting_min_satellites_summary">BeiDou satellites only</string>
     <string name="setting_report_interval">Report Interval (ms)</string>
-    <string name="setting_report_interval_summary">In milliseconds, default 100ms</string>
+    <string name="setting_report_interval_summary">In milliseconds, default 200ms. Lower values report more often and increase power/CPU usage.</string>
     <string name="setting_gps_satellite_title">Simulate GPS Satellite Signal</string>
     <string name="setting_gps_satellite_summary">Forge BeiDou satellite count and signal strength</string>
     <string name="setting_agps_title">Enable AGPS Module</string>

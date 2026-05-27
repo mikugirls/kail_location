@@ -15,8 +15,8 @@ android {
         applicationId = "com.kail.location"
         minSdk = 27
         targetSdk = 36
-        versionCode = 28
-        versionName = "1.5.1"
+        versionCode = 32
+        versionName = "1.5.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
@@ -221,7 +221,6 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
     implementation("com.google.zxing:core:3.5.1")
-    implementation("com.google.android.gms:play-services-ads:25.2.0")
     implementation("androidx.lifecycle:lifecycle-process:2.8.3")
     
     testImplementation(libs.junit)

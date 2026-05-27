@@ -210,6 +210,8 @@
     <string name="setting_hide_mock_summary">Location.isFromMockProvider フラグを除去します</string>
     <string name="setting_anti_pullback">位置の引き戻し防止</string>
     <string name="setting_anti_pullback_summary">位置を継続的に送信して、システムに戻されにくくします</string>
+    <string name="setting_natural_jitter">自然な GPS 揺らぎ</string>
+    <string name="setting_natural_jitter_summary">注入位置に揺らぎを追加します。固定位置やルートを安定させる場合はオフにしてください。</string>
     <string name="setting_group_other">その他</string>
     <string name="setting_global_mode">グローバルモード (system_server)</string>
     <string name="setting_global_mode_summary">有効にすると system_server を注入し、すべてのアプリに適用されます。無効にすると以下の対象アプリのみ注入します</string>
@@ -217,7 +219,18 @@
     <string name="setting_target_packages_summary">カンマ区切り、グローバルモードがオフの場合のみ有効。例: com.autonavi.minimap</string>
     <string name="setting_baidu_key">Baidu Map Key（再起動が必要）</string>
     <string name="setting_enable_log">ログを有効化</string>
-    <string name="setting_enable_log_summary">コンソール出力とローカルファイル保存を制御します</string>
+    <string name="setting_enable_log_summary">低頻度ログと重要な状態ログをローカルファイルに保存します</string>
+    <string name="setting_enable_debug_log">詳細デバッグログを有効化</string>
+    <string name="setting_enable_debug_log_summary">高頻度の位置デバッグログを制限付きで保存します。消費電力とファイルサイズが増える可能性があるため、問題調査時のみ使用してください。</string>
+    <string name="setting_export_log">ログをエクスポート</string>
+    <string name="setting_export_log_summary">保存先を選択して現在のログファイルを書き出します</string>
+    <string name="setting_export_log_success">ログをエクスポートしました</string>
+    <string name="setting_export_log_failed">ログのエクスポートに失敗しました</string>
+    <string name="setting_clear_log_cache">ログキャッシュを削除</string>
+    <string name="setting_clear_log_cache_summary">現在のキャッシュサイズ: %s</string>
+    <string name="setting_clear_log_cache_confirm">ログキャッシュを削除しますか？現在のサイズ: %s</string>
+    <string name="setting_clear_log_cache_success">ログキャッシュを削除しました</string>
+    <string name="setting_clear_log_cache_failed">ログキャッシュの削除に失敗しました</string>
     <string name="setting_map_zoom">フローティングウィンドウの地図ズーム</string>
     <string name="setting_map_zoom_summary">範囲は 10-21、数値が大きいほど詳細になります</string>
     <string name="setting_current_version">現在のバージョン</string>
@@ -327,11 +340,12 @@
     <string name="download_progress">ダウンロード中... %d%%</string>
 
     <string name="setting_mock_speed">シミュレート移動速度 (m/s)</string>
-    <string name="setting_accuracy_title">位置の揺らぎ範囲 (m)</string>
+    <string name="setting_accuracy_title">位置精度/揺らぎ範囲 (m)</string>
+    <string name="setting_accuracy_summary">既定値は 2.5。自然な GPS 揺らぎがオフの場合は位置精度、オンの場合は揺らぎ範囲として使用します。</string>
     <string name="setting_min_satellites">最小シミュレート衛星数</string>
     <string name="setting_min_satellites_summary">BeiDou 衛星のみ対応</string>
     <string name="setting_report_interval">報告間隔 (ms)</string>
-    <string name="setting_report_interval_summary">ミリ秒単位、既定は 100ms</string>
+    <string name="setting_report_interval_summary">ミリ秒単位、既定は 200ms。値を小さくすると報告頻度が上がり、消費電力と負荷が増えます</string>
     <string name="setting_gps_satellite_title">GPS 衛星信号をシミュレート</string>
     <string name="setting_gps_satellite_summary">BeiDou 衛星数と信号強度を偽装します</string>
     <string name="setting_agps_title">AGPS モジュールを有効にする</string>

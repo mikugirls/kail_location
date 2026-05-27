@@ -1,6 +1,7 @@
 package com.kail.location.service.Developer
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.location.Location
 import android.location.LocationManager
 import android.location.provider.ProviderProperties
@@ -15,7 +16,10 @@ import com.kail.location.utils.KailLog
 /**
  * 负责 developer 模式下 Mock Location Provider 的注册、更新与清理。
  */
-class MockLocationProvider(private val locationManager: LocationManager) {
+class MockLocationProvider(
+    private val context: Context,
+    private val locationManager: LocationManager
+) {
 
     fun ensureProviders() {
         try {
@@ -65,6 +69,7 @@ class MockLocationProvider(private val locationManager: LocationManager) {
             }
         } catch (e: Exception) {
             KailLog.e(null, "MockLocationProvider", "addTestProviderGPS error: ${e.message}")
+            showMockLocationPermissionToast(e)
         }
     }
 
@@ -130,6 +135,15 @@ class MockLocationProvider(private val locationManager: LocationManager) {
             }
         } catch (e: SecurityException) {
             KailLog.e(null, "MockLocationProvider", "addTestProviderNetwork error: ${e.message}")
+            showMockLocationPermissionToast(e)
+        }
+    }
+
+    private fun showMockLocationPermissionToast(e: Exception) {
+        if (e.message?.contains("not allowed to perform MOCK_LOCATION") == true) {
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(context, context.getString(R.string.service_set_mock_app), Toast.LENGTH_LONG).show()
+            }
         }
     }
 

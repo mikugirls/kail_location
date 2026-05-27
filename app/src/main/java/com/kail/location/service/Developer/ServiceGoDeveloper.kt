@@ -39,7 +39,7 @@ class ServiceGoDeveloper : Service() {
 
     private val mBinder = ServiceGoDeveloperBinder()
     private val mRouteEngine = RouteEngine()
-    private val mMockLocationProvider by lazy { MockLocationProvider(mLocManager) }
+    private val mMockLocationProvider by lazy { MockLocationProvider(this, mLocManager) }
     private val mNotificationHelper by lazy {
         ServiceNotificationHelper(
             service = this,
@@ -61,6 +61,7 @@ class ServiceGoDeveloper : Service() {
         const val DEFAULT_BEA = ServiceConstants.DEFAULT_BEA
 
         private const val HANDLER_MSG_ID = 0
+        private const val DEFAULT_LOCATION_UPDATE_INTERVAL_MS = 200L
         private const val SERVICE_GO_HANDLER_NAME = "ServiceGoDeveloperLocation"
         private const val SERVICE_GO_NOTE_ID = 1
         const val SERVICE_GO_NOTE_ACTION_JOYSTICK_SHOW = ServiceNotificationHelper.ACTION_JOYSTICK_SHOW
@@ -144,8 +145,11 @@ class ServiceGoDeveloper : Service() {
                     CONTROL_PAUSE -> {
                         try {
                             isStop = true
-                            mJoystickManager.setRoutePauseState(true)
+                            if (this::mJoystickManager.isInitialized) {
+                                mJoystickManager.setRoutePauseState(true)
+                            }
                             broadcastStatus()
+                            KailLog.log(this, "ServiceGoDeveloper", "Paused simulation (isStop=true)", isHighFrequency = false)
                         } catch (e: Exception) {
                             KailLog.log(this, "ServiceGoDeveloper", "Pause error: ${e.message}", isHighFrequency = false)
                         }
@@ -154,8 +158,14 @@ class ServiceGoDeveloper : Service() {
                     CONTROL_RESUME -> {
                         try {
                             isStop = false
-                            mJoystickManager.setRoutePauseState(false)
+                            if (this::mJoystickManager.isInitialized) {
+                                mJoystickManager.setRoutePauseState(false)
+                            }
+                            if (locationLoopStarted && this::mLocHandler.isInitialized && !mLocHandler.hasMessages(HANDLER_MSG_ID)) {
+                                mLocHandler.sendEmptyMessage(HANDLER_MSG_ID)
+                            }
                             broadcastStatus()
+                            KailLog.log(this, "ServiceGoDeveloper", "Resumed simulation (isStop=false)", isHighFrequency = false)
                         } catch (e: Exception) {
                             KailLog.log(this, "ServiceGoDeveloper", "Resume error: ${e.message}", isHighFrequency = false)
                         }
@@ -165,27 +175,43 @@ class ServiceGoDeveloper : Service() {
                         try {
                             stopSelf()
                             broadcastStatus()
+                            KailLog.i(this, "ServiceGoDeveloper", "stopSelf via control action")
                         } catch (e: Exception) {
                             KailLog.e(this, "ServiceGoDeveloper", "stop error: ${e.message}")
                         }
                         return super.onStartCommand(intent, flags, startId)
                     }
                     CONTROL_SEEK -> {
-                        val ratio = intent.getFloatExtra(EXTRA_SEEK_RATIO, 0f).coerceIn(0f, 1f)
-                        mRouteEngine.seekToRatio(ratio)
-                        mCurLng = mRouteEngine.currentLng
-                        mCurLat = mRouteEngine.currentLat
-                        mCurBea = mRouteEngine.currentBea
-                        updateJoystickStatus()
+                        try {
+                            val ratio = intent.getFloatExtra(EXTRA_SEEK_RATIO, 0f).coerceIn(0f, 1f)
+                            mRouteEngine.seekToRatio(ratio)
+                            mCurLng = mRouteEngine.currentLng
+                            mCurLat = mRouteEngine.currentLat
+                            mCurBea = mRouteEngine.currentBea
+                            updateJoystickStatus()
+                            KailLog.i(this, "ServiceGoDeveloper", "seek to ratio=$ratio")
+                        } catch (e: Exception) {
+                            KailLog.e(this, "ServiceGoDeveloper", "seek error: ${e.message}")
+                        }
                         return super.onStartCommand(intent, flags, startId)
                     }
                     CONTROL_SET_SPEED -> {
-                        val kmh = intent.getFloatExtra(EXTRA_ROUTE_SPEED, (mSpeed * 3.6).toFloat())
-                        mSpeed = kmh.toDouble() / 3.6
+                        try {
+                            val kmh = intent.getFloatExtra(EXTRA_ROUTE_SPEED, (mSpeed * 3.6).toFloat())
+                            mSpeed = kmh.toDouble() / 3.6
+                            KailLog.i(this, "ServiceGoDeveloper", "speed updated to km/h=$kmh m/s=$mSpeed")
+                        } catch (e: Exception) {
+                            KailLog.e(this, "ServiceGoDeveloper", "set_speed error: ${e.message}")
+                        }
                         return super.onStartCommand(intent, flags, startId)
                     }
                     CONTROL_SET_SPEED_FLUCTUATION -> {
-                        speedFluctuation = intent.getBooleanExtra(EXTRA_SPEED_FLUCTUATION, speedFluctuation)
+                        try {
+                            speedFluctuation = intent.getBooleanExtra(EXTRA_SPEED_FLUCTUATION, speedFluctuation)
+                            KailLog.i(this, "ServiceGoDeveloper", "speedFluctuation updated to $speedFluctuation")
+                        } catch (e: Exception) {
+                            KailLog.e(this, "ServiceGoDeveloper", "set_speed_fluctuation error: ${e.message}")
+                        }
                         return super.onStartCommand(intent, flags, startId)
                     }
                 }
@@ -263,8 +289,8 @@ class ServiceGoDeveloper : Service() {
 
             isStop = true
             locationLoopStarted = false
-            if (this::mLocHandler.isInitialized) mLocHandler.removeMessages(HANDLER_MSG_ID)
-            if (this::mLocHandlerThread.isInitialized) mLocHandlerThread.quit()
+            if (this::mLocHandler.isInitialized) mLocHandler.removeCallbacksAndMessages(null)
+            if (this::mLocHandlerThread.isInitialized) mLocHandlerThread.quitSafely()
             if (this::mJoystickManager.isInitialized) mJoystickManager.destroy()
 
             mMockLocationProvider.cleanup()
@@ -313,12 +339,11 @@ class ServiceGoDeveloper : Service() {
     }
 
     private fun initGoLocation() {
-        mLocHandlerThread = HandlerThread(SERVICE_GO_HANDLER_NAME, Process.THREAD_PRIORITY_FOREGROUND)
+        mLocHandlerThread = HandlerThread(SERVICE_GO_HANDLER_NAME, Process.THREAD_PRIORITY_BACKGROUND)
         mLocHandlerThread.start()
         mLocHandler = object : Handler(mLocHandlerThread.looper) {
             override fun handleMessage(msg: Message) {
                 try {
-                    Thread.sleep(50)
                     if (!isStop) {
                         if (mRouteEngine.isActive) {
                             val speedForStep = if (speedFluctuation) {
@@ -326,7 +351,8 @@ class ServiceGoDeveloper : Service() {
                             } else {
                                 mSpeed
                             }
-                            mRouteEngine.advance(speedForStep * 0.05)
+                            val intervalMs = currentLocationUpdateIntervalMs()
+                            mRouteEngine.advance(speedForStep * (intervalMs / 1000.0))
                             mCurLng = mRouteEngine.currentLng
                             mCurLat = mRouteEngine.currentLat
                             mCurBea = mRouteEngine.currentBea
@@ -336,16 +362,24 @@ class ServiceGoDeveloper : Service() {
                     if (!isStop) {
                         mMockLocationProvider.setLocation(mCurLat, mCurLng, mCurAlt, mCurBea, mSpeed, isStop)
                     }
-                    sendEmptyMessage(HANDLER_MSG_ID)
+                    if (!isStop) {
+                        mLocHandler.sendEmptyMessageDelayed(HANDLER_MSG_ID, currentLocationUpdateIntervalMs())
+                    }
                 } catch (e: InterruptedException) {
                     KailLog.e(this@ServiceGoDeveloper, "ServiceGoDeveloper", "handleMessage interrupted: ${e.message}")
                     Thread.currentThread().interrupt()
                 } catch (e: Exception) {
                     KailLog.e(this@ServiceGoDeveloper, "ServiceGoDeveloper", "handleMessage exception: ${e.message}")
-                    if (!isStop) sendEmptyMessageDelayed(HANDLER_MSG_ID, 100)
+                    if (!isStop) sendEmptyMessageDelayed(HANDLER_MSG_ID, currentLocationUpdateIntervalMs())
                 }
             }
         }
+    }
+
+    private fun currentLocationUpdateIntervalMs(): Long {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        return (prefs.getString("setting_report_interval", DEFAULT_LOCATION_UPDATE_INTERVAL_MS.toString())?.toLongOrNull()
+            ?: DEFAULT_LOCATION_UPDATE_INTERVAL_MS).coerceAtLeast(0L)
     }
 
     private fun startLocationLoop() {

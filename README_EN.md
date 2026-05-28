@@ -15,7 +15,7 @@ If you have feature requests, please open an issue.
 This software is intended **only** for developers or professionals for debugging and testing.
 
 Contact
-https://t.me/kaillcation
+https://t.me/kaillocation
 Email: kailkali23143@gmail.com
 
 Tech Stack

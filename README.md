@@ -13,7 +13,7 @@
 本软件仅供开发人员或专业人士调试使用。
 
 联系作者：
-https://t.me/kaillcation
+https://t.me/kaillocation
 kailkali23143@gmail.com
 
 技术：

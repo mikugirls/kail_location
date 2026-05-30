@@ -8,7 +8,9 @@ find_library(log-lib log)
 
 find_package(dobby CONFIG REQUIRED)
 
-# Native hook library for system_server process (sensor simulation)
+# ============================================================
+# Native hook library for system_server (sensor simulation)
+# ============================================================
 add_library(kail_native_hook SHARED
     native_hook/sensor_simulator.cpp
     native_hook/hook.cpp
@@ -22,42 +24,35 @@ set_target_properties(kail_native_hook PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
 )
 
-# Root hook library - injected into remote processes via ptrace
-add_library(kail_root_hook SHARED
-    root_hook/entry.cpp
-)
-
-target_include_directories(kail_root_hook PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(kail_root_hook PRIVATE ${log-lib} dl)
-
-set_target_properties(kail_root_hook PROPERTIES
-    OUTPUT_NAME "kail_root_hook"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
-)
-
-# LHooker ART Method Hooking Engine (simplified)
-add_library(kail_lhooker SHARED
-    lhooker/lhooker.cpp
-)
-
-target_include_directories(kail_lhooker PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(kail_lhooker PRIVATE ${log-lib} dl)
-
-set_target_properties(kail_lhooker PROPERTIES
-    OUTPUT_NAME "kail_lhooker"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
-)
-
-# Ptrace injector executable - runs as root to inject libraries into remote processes
+# ============================================================
+# Ptrace injector (64-bit) - C++ source with .c extension
+# ============================================================
 add_executable(kail_inject
-    ptrace_inject/main.cpp
-    ptrace_inject/ptrace_utils.cpp
+    fakelocation/inject64.c
 )
+
+set_source_files_properties(fakelocation/inject64.c PROPERTIES LANGUAGE CXX)
 
 target_include_directories(kail_inject PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(kail_inject PRIVATE ${log-lib} dl)
 
 set_target_properties(kail_inject PROPERTIES
     OUTPUT_NAME "kail_inject"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
 )
+
+# ============================================================
+# fakelocation native targets (disable for Phase 1 MVP)
+#
+# These source files contain decompilation artifacts that
+# require targeted cleanup before they can compile with
+# modern NDK. Enable individually after fixing:
+#
+#   kail_root_hook      - fakelocation/libfakeloc_init.c
+#   kail_lhooker         - fakelocation/liblhooker.c
+#   kail_inject_32       - fakelocation/inject.c
+#   kail_antidetect      - fakelocation/libantidetect.c
+#   kail_fakeloc_apphook - fakelocation/libfakeloc_apphook.c
+#   kail_fakeloc_initzygote - fakelocation/libfakeloc_initzygote.c
+#   kail_step_sensor     - fakelocation/libStepSensor.c
+# ============================================================

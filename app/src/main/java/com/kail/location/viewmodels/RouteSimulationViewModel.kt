@@ -15,6 +15,7 @@ import java.util.ArrayList
 import com.kail.location.models.UpdateInfo
 import com.kail.location.utils.UpdateChecker
 import com.kail.location.utils.GoUtils
+import com.kail.location.utils.KailLog
 import android.content.Context
 import android.content.Intent
 import android.Manifest
@@ -98,6 +99,8 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
         const val POI_ADDRESS = "address"
         const val POI_LATITUDE = "latitude"
         const val POI_LONGITUDE = "longitude"
+
+        private const val TAG = "RouteSimVM"
 
         private fun getServiceClass(mode: String) = when (mode) {
             "root" -> ServiceGoRoot::class.java
@@ -257,7 +260,8 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
                     outFile
                 )
                 _installUri.value = uri
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                KailLog.e(getApplication(), TAG, "startUpdateDownload: download update failed", e)
                 _isDownloading.value = false
             } finally {
                 _isDownloading.value = false
@@ -499,6 +503,7 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
             list.sortByDescending { it.first }
             list.map { it.second }
         } catch (e: Exception) {
+            KailLog.w(getApplication(), TAG, "parseRoutes: parse saved routes failed: ${e.message}")
             emptyList()
         }
     }
@@ -523,7 +528,9 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
                 prefs.edit().putString("saved_routes", arr.toString()).apply()
                 _historyRoutes.value = parseRoutes(arr.toString())
                 enrichNamesForRoute(obj)
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                KailLog.w(getApplication(), TAG, "saveRoute: save route failed: ${e.message}")
+            }
         }
     }
 
@@ -543,7 +550,8 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
                 out[i++] = p.optDouble("lat")
             }
             out
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            KailLog.w(getApplication(), TAG, "getLatestRoutePoints: read latest route points failed: ${e.message}")
             null
         }
     }
@@ -649,7 +657,9 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
                 prefs.edit().putString("saved_routes", arr.toString()).apply()
                 _historyRoutes.value = parseRoutes(arr.toString())
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            KailLog.w(getApplication(), TAG, "enrichNamesForRoute: enrich route names failed: ${e.message}")
+        }
     }
 
     private fun reverseGeocode(lat: Double, lng: Double, onResult: (String) -> Unit) {
@@ -667,7 +677,8 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
                 }
             })
             coder.reverseGeoCode(ReverseGeoCodeOption().location(com.baidu.mapapi.model.LatLng(lat, lng)))
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            KailLog.w(getApplication(), TAG, "reverseGeocode: reverse geocode failed: ${e.message}")
             onResult(getApplication<Application>().getString(R.string.vm_unknown_location))
         }
     }

@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.SharedPreferences
 import androidx.lifecycle.AndroidViewModel
 import androidx.preference.PreferenceManager
+import com.kail.location.utils.KailLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,6 +25,7 @@ class RootAppHideViewModel(application: Application) : AndroidViewModel(applicat
     private val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(application)
 
     companion object {
+        private const val TAG = "RootAppHideViewModel"
         const val KEY_HIDE_ENABLED = "root_hide_enabled"
         const val KEY_HIDE_ROOT = "root_hide_hide_root"
         const val KEY_HIDE_APPLIST = "root_hide_hide_applist"
@@ -113,7 +115,7 @@ class RootAppHideViewModel(application: Application) : AndroidViewModel(applicat
                 ctx.startService(intent)
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            KailLog.e(getApplication(), TAG, "pushHideConfig failed", e)
         }
     }
 }

@@ -132,6 +132,7 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
 
 
     companion object {
+        private const val TAG = "NavSimVM"
         const val POI_NAME = "name"
         const val POI_ADDRESS = "address"
         const val POI_LATITUDE = "latitude"
@@ -179,7 +180,7 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            KailLog.e(getApplication(), TAG, "selectHistoryRoute failed", e)
         }
     }
 
@@ -474,7 +475,7 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
         try {
             getApplication<Application>().unregisterReceiver(statusReceiver)
         } catch (e: Exception) {
-            e.printStackTrace()
+            KailLog.e(getApplication(), TAG, "onCleared failed", e)
         }
         suggestionSearch.destroy()
         routePlanSearch.destroy()

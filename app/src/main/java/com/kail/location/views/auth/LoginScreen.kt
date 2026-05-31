@@ -23,6 +23,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/** 仅允许的登录邮箱域名：QQ 邮箱与谷歌邮箱。 */
+private val ALLOWED_EMAIL_DOMAINS = listOf("qq.com", "gmail.com")
+
+/** 校验邮箱是否属于允许的域名（QQ / Gmail），大小写与首尾空格不敏感。 */
+private fun isAllowedEmailDomain(email: String): Boolean {
+    val normalized = email.trim().lowercase()
+    val at = normalized.lastIndexOf('@')
+    if (at <= 0 || at == normalized.length - 1) return false
+    val domain = normalized.substring(at + 1)
+    return ALLOWED_EMAIL_DOMAINS.contains(domain)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(onBack: () -> Unit) {
@@ -35,6 +47,7 @@ fun LoginScreen(onBack: () -> Unit) {
     val coroutineScope = rememberCoroutineScope()
     val errEmptyFields = stringResource(R.string.login_error_empty_fields)
     val errEmptyEmail = stringResource(R.string.login_error_empty_email)
+    val errInvalidDomain = stringResource(R.string.login_error_invalid_email_domain)
     val errSendCodeFailed = stringResource(R.string.register_error_send_code_failed)
     val errUnknown = stringResource(R.string.login_error_unknown)
 
@@ -79,7 +92,7 @@ fun LoginScreen(onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "输入邮箱验证码即可登录或自动注册",
+                text = "仅支持 QQ 邮箱与谷歌邮箱，输入验证码即可登录或自动注册",
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -130,6 +143,10 @@ fun LoginScreen(onBack: () -> Unit) {
                     onClick = {
                         if (mail.isBlank()) {
                             errorMessage = errEmptyEmail
+                            return@Button
+                        }
+                        if (!isAllowedEmailDomain(mail)) {
+                            errorMessage = errInvalidDomain
                             return@Button
                         }
 
@@ -187,6 +204,10 @@ fun LoginScreen(onBack: () -> Unit) {
                 onClick = {
                     if (mail.isBlank() || code.isBlank()) {
                         errorMessage = errEmptyFields
+                        return@Button
+                    }
+                    if (!isAllowedEmailDomain(mail)) {
+                        errorMessage = errInvalidDomain
                         return@Button
                     }
 

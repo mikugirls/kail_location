@@ -22,10 +22,15 @@ import org.json.JSONArray
 import org.json.JSONObject
 import com.kail.location.R
 import com.kail.location.auth.UsageManager
+import com.kail.location.utils.KailLog
 import com.kail.location.views.nfcsimulation.NfcSimulationContract.NavigateDestination
 import com.kail.location.views.nfcsimulation.NfcSimulationContract.NfcHistoryItem
 
 class NfcSimulationViewModel : ViewModel() {
+    companion object {
+        private const val TAG = "NfcSimVM"
+    }
+
     private val _nfcEnabled = MutableStateFlow(false)
     val nfcEnabled: StateFlow<Boolean> = _nfcEnabled.asStateFlow()
     
@@ -81,6 +86,7 @@ class NfcSimulationViewModel : ViewModel() {
             }
             _historyRecords.value = list
         } catch (e: Exception) {
+            KailLog.w(null, TAG, "loadHistory: load NFC history failed: ${e.message}")
             _historyRecords.value = emptyList()
         }
     }
@@ -101,7 +107,7 @@ class NfcSimulationViewModel : ViewModel() {
             }
             prefs?.edit()?.putString("history", array.toString())?.apply()
         } catch (e: Exception) {
-            // ignore
+            KailLog.w(null, TAG, "saveHistory: save NFC history failed: ${e.message}")
         }
     }
     
@@ -186,6 +192,7 @@ class NfcSimulationViewModel : ViewModel() {
                 }
                 it.close()
             } catch (e: Exception) {
+                KailLog.w(null, TAG, "onNfcTagDetected: read NDEF message failed: ${e.message}")
                 _ndefContent.value = context?.getString(R.string.nfc_sim_read_failed, e.message) ?: "读取失败: ${e.message}"
             }
         }
@@ -277,9 +284,11 @@ class NfcSimulationViewModel : ViewModel() {
                 charset(charsetName)
             )
         } catch (e: Exception) {
+            KailLog.d(null, TAG, "parseTextPayload: decode with declared charset failed, falling back to UTF-8: ${e.message}")
             try {
                 String(payload, Charsets.UTF_8)
             } catch (e2: Exception) {
+                KailLog.d(null, TAG, "parseTextPayload: UTF-8 fallback decode failed: ${e2.message}")
                 null
             }
         }
@@ -308,6 +317,7 @@ class NfcSimulationViewModel : ViewModel() {
             _mockUrl.value = url
             _mockPackageName.value = packageName
         } catch (e: Exception) {
+            KailLog.w(null, TAG, "parseAndAutoFill: parse NFC content failed: ${e.message}")
             _mockUrl.value = content
             _mockPackageName.value = ""
         }
@@ -343,6 +353,7 @@ class NfcSimulationViewModel : ViewModel() {
                 val result = dispatchNfc(context, _mockUrl.value, _mockPackageName.value)
                 _sendResult.value = result
             } catch (e: Exception) {
+                KailLog.w(null, TAG, "sendMockNfc: dispatch mock NFC failed: ${e.message}")
                 _sendResult.value = context.getString(R.string.nfc_sim_send_failed, e.message)
             }
         }
@@ -370,6 +381,7 @@ class NfcSimulationViewModel : ViewModel() {
             context.startActivity(intent)
             context.getString(R.string.nfc_sim_sent, url.ifBlank { packageName })
         } catch (e: Exception) {
+            KailLog.w(null, TAG, "dispatchNfc: send NDEF discovered intent failed, falling back to ACTION_VIEW: ${e.message}")
             try {
                 val viewIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
                 if (packageName.isNotBlank()) {
@@ -379,6 +391,7 @@ class NfcSimulationViewModel : ViewModel() {
                 context.startActivity(viewIntent)
                 context.getString(R.string.nfc_sim_opened, url)
             } catch (e2: Exception) {
+                KailLog.w(null, TAG, "dispatchNfc: ACTION_VIEW fallback failed: ${e2.message}")
                 context.getString(R.string.nfc_sim_send_failed, e2.message)
             }
         }

@@ -262,17 +262,45 @@ public class MockStepSensorManager {
     }
 
     public static void startStepSensorMock() {
-        // Root mode step spoofing uses libkail_native_hook.so (Dobby inline
-        // hook of libsensorservice.so::convertToSensorEvent) driven by the
-        // gait simulator — NOT the fragile libStepSensor ELF hook that crashed
-        // SensorService. This runs INSIDE system_server (where libsensorservice
-        // is mapped); MockLocationManagerService.startStepSensorMock is invoked
-        // over the service_mock_location binder, which executes here in
-        // system_server, so installing the hook in this process is correct.
+        // NOTE: Root-mode step spoofing via libkail_native_hook.so installs a
+        // Dobby inline hook on libsensorservice.so::convertToSensorEvent /
+        // libsensor.so::send_objects INSIDE system_server. On ROMs where the
+        // probed symbol offsets are even slightly wrong, DobbyHook patches the
+        // wrong address and SensorService segfaults — taking down system_server
+        // and rebooting the device. That must never happen as a side effect of
+        // starting location/route/wifi/cell simulation.
+        //
+        // So we only flip the shared mocking flag here. The native hook is
+        // installed ONLY when step mocking is explicitly enabled AND a
+        // validated offsets file is present (see maybeInstallNativeStepHook),
+        // never unconditionally.
         mockStartTimeMillis = System.currentTimeMillis();
         mocking = true;
+        maybeInstallNativeStepHook();
+    }
+
+    /**
+     * Install the native gait/step hook only when it is both requested and
+     * safe:
+     *   - the offsets file exists and both offsets parsed non-zero, and
+     *   - an explicit enable marker is present
+     *     ({@code /data/local/kail-lib/kail_step_native_enabled}).
+     * This keeps a wrong/zero offset from ever crashing SensorService, and lets
+     * the feature be turned off instantly (delete the marker) without a rebuild.
+     */
+    private static void maybeInstallNativeStepHook() {
         try {
+            if (!new java.io.File("/data/local/kail-lib/kail_step_native_enabled").exists()) {
+                Log.i("MSU", "native step hook disabled (no enable marker); skipping system_server hook");
+                return;
+            }
             long[] off = readSensorOffsets();
+            // Require BOTH offsets to be present and sane before touching
+            // SensorService memory. A zero/garbage offset is rejected.
+            if (off[0] == 0L || off[1] == 0L) {
+                Log.w("MSU", "native step hook: offsets unavailable (write=" + off[0] + " convert=" + off[1] + "), skipping");
+                return;
+            }
             float spm = stepSpeed > 0 ? stepSpeed * 60f : 120f; // stepSpeed is steps/sec
             NativeStepHook.install(off[0], off[1], spm);
             NativeStepHook.start(spm, 0, 0);

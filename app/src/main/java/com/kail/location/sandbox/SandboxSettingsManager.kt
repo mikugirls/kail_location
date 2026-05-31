@@ -2,6 +2,7 @@ package com.kail.location.sandbox
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.kail.location.utils.KailLog
 import top.niunaijun.blackbox.BlackBoxCore
 
 /**
@@ -9,6 +10,7 @@ import top.niunaijun.blackbox.BlackBoxCore
  */
 object SandboxSettingsManager {
 
+    private const val TAG = "SandboxSettings"
     private const val SP_NAME = "AppSharedPreferenceDelegate"
     private const val KEY_HIDE_ROOT = "mHideRoot"
     private const val KEY_DAEMON_ENABLE = "mDaemonEnable"
@@ -41,6 +43,7 @@ object SandboxSettingsManager {
         get() = try {
             BlackBoxCore.get().isSupportGms
         } catch (e: Exception) {
+            KailLog.w(null, TAG, "isSupportGms: query GMS support failed: ${e.message}")
             false
         }
 

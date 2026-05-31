@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kail.location.auth.AuthManager
 import com.kail.location.network.RuoYiClient
+import com.kail.location.utils.KailLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -16,6 +17,10 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 
 class SponsorViewModel : ViewModel() {
+
+    companion object {
+        private const val TAG = "SponsorViewModel"
+    }
 
     var plans by mutableStateOf<List<RuoYiClient.SubscriptionPlan>>(emptyList())
         private set
@@ -41,7 +46,7 @@ class SponsorViewModel : ViewModel() {
                         selectedPlanId = planList.first().id
                     }
                 },
-                onFailure = { /* ignore */ }
+                onFailure = { e -> KailLog.w(null, TAG, "loadPlans: fetch subscription plans failed: ${e.message}") }
             )
         }
     }
@@ -81,7 +86,10 @@ class SponsorViewModel : ViewModel() {
             }
             result.fold(
                 onSuccess = { url -> onUrl(url) },
-                onFailure = { error -> checkoutError = error.message }
+                onFailure = { error ->
+                    KailLog.w(null, TAG, "createCheckoutUrl: create checkout failed: ${error.message}")
+                    checkoutError = error.message
+                }
             )
             isCreatingCheckout = false
         }
@@ -102,7 +110,7 @@ class SponsorViewModel : ViewModel() {
                 onSuccess = { status ->
                     AuthManager.updateSubscription(status.active, status.expiresAt)
                 },
-                onFailure = { /* ignore */ }
+                onFailure = { e -> KailLog.w(null, TAG, "checkSubscriptionStatus: query subscription status failed: ${e.message}") }
             )
         }
     }

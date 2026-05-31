@@ -50,6 +50,22 @@ static int step_sim_enabled = 1;
 static float current_spm = 120.0f;
 static int step_event_counter = 0;
 
+// --- Cadence-accurate, time-based step synthesis (convertToSensorEvent path) ---
+// The old logic turned EVERY light-sensor (type 5) event into a step event, so
+// the emitted step rate tracked the light-sensor event rate instead of the
+// configured cadence — that was the source of the large spm-vs-actual error.
+// Instead we gate emission on REAL elapsed time: at cadence `current_spm`, one
+// step is due every (60000/spm) ms. We use the sensor event's own monotonic
+// timestamp (ns) as the clock, accumulate the exact fractional step debt, and
+// emit a step-detector pulse + advance a cumulative step-counter only when a
+// whole step is actually due.
+static int64_t step_last_ts_ns = 0;     // timestamp of last processed trigger event
+static double  step_debt = 0.0;         // fractional steps owed (0..1+)
+static uint64_t step_count_total = 0;   // cumulative spoofed step counter
+static bool    step_have_base = false;  // captured the device's real counter base
+static int     step_emit_phase = 0;     // 0 = emit detector next, 1 = emit counter next
+static const int64_t kStepMaxGapNs = 5LL * 1000000000LL; // clamp idle gaps to 5s
+
 #define ALOGI_TO_FILE(...) ALOGI(__VA_ARGS__)
 #define ALOGE_TO_FILE(...) ALOGE(__VA_ARGS__)
 
@@ -57,6 +73,19 @@ void setRouteSimulationActive(bool active) {
     route_simulation_active = active;
     if (!active) {
         gait::SensorSimulator::Get().UpdateParams(120.0f, 0, 0, false);
+    }
+}
+
+// Reset the cadence-accurate step synthesis state (debt clock + counter base).
+// step_count_total is preserved across re-arming within a session so the
+// cumulative counter keeps climbing; it is only zeroed on a full reset.
+static void resetStepDebtClock(bool zeroCounter) {
+    step_last_ts_ns = 0;
+    step_debt = 0.0;
+    step_emit_phase = 0;
+    if (zeroCounter) {
+        step_count_total = 0;
+        step_have_base = false;
     }
 }
 
@@ -157,10 +186,8 @@ extern "C" void hooked_convert_to_sensor_event(void* param_1, void* param_2) {
     int sensor_type = *(int*)((char*)param_2 + 0x08);
 
     if (sensor_type == SENSOR_TYPE_STEP_DETECTOR) {
-        stepdetectorTrigger = 1;
         mSensorHandleStepDetector = *(int*)((char*)param_2 + 0x04);
     } else if (sensor_type == SENSOR_TYPE_STEP_COUNTER) {
-        stepcounterTrigger = 1;
         mSensorHandleStepCounter = *(int*)((char*)param_2 + 0x04);
     } else if (sensor_type == 5) {
         if (mSensorHandleStepDetector == -1) {
@@ -175,37 +202,58 @@ extern "C" void hooked_convert_to_sensor_event(void* param_1, void* param_2) {
         original_convert_to_sensor_event(param_1, param_2);
     }
 
+    // Cadence-accurate step synthesis: retype the carrier (light, type 5)
+    // event into a step-detector / step-counter event, but ONLY when a whole
+    // step is actually due in real time at the configured cadence. This makes
+    // the emitted step rate equal the UI spm regardless of how often the
+    // carrier event fires.
     if ((isMocking != 0) && step_sim_enabled && (sensor_type == 5)) {
-        if ((stepdetectorTrigger == 1) && (mSensorHandleStepDetector != -1) &&
-            (stepcounterTrigger == 1) && (mSensorHandleStepCounter != -1)) {
-            if (step_event_counter < 4) {
-                step_event_counter++;
-                *(int*)((char*)param_2 + 0x04) = mSensorHandleStepDetector;
-                *(int*)((char*)param_2 + 0x08) = 0x12;
-                *(float*)((char*)param_2 + 0x18) = 1.0f;
-            } else {
-                step_event_counter = 0;
-                *(int*)((char*)param_2 + 0x04) = mSensorHandleStepCounter;
-                *(int*)((char*)param_2 + 0x08) = 0x13;
-                *(uint64_t*)((char*)param_2 + 0x18) = 0;
-            }
-        } else if ((stepdetectorTrigger == 1) && (mSensorHandleStepDetector != -1)) {
-            stepdetectorTrigger = 0;
-            *(int*)((char*)param_2 + 0x04) = mSensorHandleStepDetector;
-            *(int*)((char*)param_2 + 0x08) = 0x12;
-            *(float*)((char*)param_2 + 0x18) = 1.0f;
-        } else if ((stepcounterTrigger == 1) && (mSensorHandleStepCounter != -1)) {
-            stepcounterTrigger = 0;
-            *(int*)((char*)param_2 + 0x04) = mSensorHandleStepCounter;
-            *(int*)((char*)param_2 + 0x08) = 0x13;
-            *(uint64_t*)((char*)param_2 + 0x18) = 0;
-        } else {
-            stepdetectorTrigger = 1;
-            mSensorHandleStepDetector = 0;
-            *(int*)((char*)param_2 + 0x04) = 0;
-            *(int*)((char*)param_2 + 0x08) = 0x12;
-            *(float*)((char*)param_2 + 0x18) = 1.0f;
+        int64_t ts = *(int64_t*)((char*)param_2 + 0x10);
+
+        float spm = current_spm;
+        if (spm < 1.0f) spm = 1.0f;
+        if (spm > 400.0f) spm = 400.0f;
+        const double sps = (double)spm / 60.0;
+
+        if (step_last_ts_ns == 0) {
+            step_last_ts_ns = ts;
         }
+        int64_t delta = ts - step_last_ts_ns;
+        if (delta < 0) delta = 0;
+        if (delta > kStepMaxGapNs) delta = kStepMaxGapNs; // ignore long idle gaps
+        step_last_ts_ns = ts;
+
+        // Accrue exact fractional step debt for the elapsed real time.
+        step_debt += (double)delta * 1e-9 * sps;
+
+        if (step_debt >= 1.0) {
+            // A whole step is due. Alternate detector / counter emissions so an
+            // app listening to either sensor sees a consistent cadence.
+            if (step_emit_phase == 0 && mSensorHandleStepDetector != -1) {
+                // STEP_DETECTOR pulse. Consumes exactly one step of debt.
+                step_debt -= 1.0;
+                step_count_total += 1;
+                *(int*)((char*)param_2 + 0x04) = mSensorHandleStepDetector;
+                *(int*)((char*)param_2 + 0x08) = 0x12; // TYPE_STEP_DETECTOR
+                *(float*)((char*)param_2 + 0x18) = 1.0f;
+                step_emit_phase = 1;
+            } else if (mSensorHandleStepCounter != -1) {
+                // STEP_COUNTER cumulative value. Catch up the FULL integer debt
+                // here so the counter stays accurate even when the carrier
+                // (light) event is sparser than the step cadence — a sparse
+                // carrier can't limit the cumulative total this way.
+                uint64_t due = (uint64_t)step_debt;
+                if (due < 1) due = 1;
+                step_debt -= (double)due;
+                step_count_total += due;
+                *(int*)((char*)param_2 + 0x04) = mSensorHandleStepCounter;
+                *(int*)((char*)param_2 + 0x08) = 0x13; // TYPE_STEP_COUNTER
+                *(uint64_t*)((char*)param_2 + 0x18) = step_count_total;
+                step_emit_phase = 0;
+            }
+        }
+        // If no whole step is due, leave the event as the original (post-hook)
+        // light event — we simply don't fabricate a step this tick.
     }
 }
 
@@ -330,6 +378,7 @@ Java_com_kail_location_inject_utils_NativeStepHook_nativeSetRouteSimulation(
         gait::SensorSimulator::Get().UpdateParams(spm, mode, 0, true);
         isMocking = 1;
         step_event_counter = 0;
+        resetStepDebtClock(false);
     } else {
         setRouteSimulationActive(false);
         isMocking = 0;
@@ -339,6 +388,7 @@ Java_com_kail_location_inject_utils_NativeStepHook_nativeSetRouteSimulation(
 JNIEXPORT void JNICALL
 Java_com_kail_location_inject_utils_NativeStepHook_nativeSetGaitParams(
     JNIEnv* env, jclass clazz, jfloat spm, jint mode, jint scheme, jboolean enable) {
+    if (spm > 0.0f) current_spm = spm;   // keep the time-based synthesizer in sync
     gait::SensorSimulator::Get().UpdateParams(spm, mode, scheme, enable);
 }
 
@@ -361,6 +411,7 @@ Java_com_kail_location_inject_utils_NativeStepHook_nativeReset(
     route_simulation_active = false;
     isMocking = 0;
     step_event_counter = 0;
+    resetStepDebtClock(true);
     stepdetectorTrigger = 0;
     stepcounterTrigger = 0;
     mSensorHandleStepDetector = -1;
@@ -424,6 +475,7 @@ Java_com_kail_location_root_NativeSensorHook_nativeSetRouteSimulation(
         gait::SensorSimulator::Get().UpdateParams(spm, mode, 0, true);
         isMocking = 1;
         step_event_counter = 0;
+        resetStepDebtClock(false);
     } else {
         setRouteSimulationActive(false);
         isMocking = 0;
@@ -440,6 +492,7 @@ Java_com_kail_location_root_NativeSensorHook_nativeSetGaitParams(
     jint scheme,
     jboolean enable
 ) {
+    if (spm > 0.0f) current_spm = spm;   // keep the time-based synthesizer in sync
     gait::SensorSimulator::Get().UpdateParams(spm, mode, scheme, enable);
 }
 
@@ -487,6 +540,7 @@ Java_com_kail_location_root_NativeSensorHook_nativeReset(
     route_simulation_active = false;
     isMocking = 0;
     step_event_counter = 0;
+    resetStepDebtClock(true);
     stepdetectorTrigger = 0;
     stepcounterTrigger = 0;
     mSensorHandleStepDetector = -1;

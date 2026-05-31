@@ -7,6 +7,7 @@ import androidx.preference.PreferenceManager
 import com.baidu.mapapi.model.LatLng
 import com.kail.location.R
 import com.kail.location.repositories.RootMockRepository
+import com.kail.location.utils.KailLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -91,6 +92,7 @@ class LocationPickerViewModel(application: Application) : AndroidViewModel(appli
     private val suggestionSearch = com.baidu.mapapi.search.sug.SuggestionSearch.newInstance()
 
     companion object {
+        private const val TAG = "LocationPickerVM"
         const val POI_NAME = "POI_NAME"
         const val POI_ADDRESS = "POI_ADDRESS"
         const val POI_LONGITUDE = "POI_LONGITUDE"
@@ -156,7 +158,7 @@ class LocationPickerViewModel(application: Application) : AndroidViewModel(appli
                     .city(city ?: getApplication<Application>().getString(R.string.vm_search_city))
             )
         } catch (e: Exception) {
-            e.printStackTrace()
+            KailLog.e(getApplication(), TAG, "search failed", e)
         }
     }
 

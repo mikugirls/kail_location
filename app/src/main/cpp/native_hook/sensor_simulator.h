@@ -80,6 +80,11 @@ private:
     void SmoothStepRate(double dt);
     void AdvancePhase(double dt);
 
+    // Exact step total at the given event timestamp (segment-integrated).
+    double StepsAt(int64_t ts_ns);
+    // Re-anchor the segment when cadence changes so counting stays continuous.
+    void RebaseStepSegment(int64_t ts_ns, float new_spm);
+
     void ApplyAccelerometer(sensors_event_t& e, double dt);
     void ApplyAccelerometerSine(sensors_event_t& e, double dt);
     void ApplyLinearAcceleration(sensors_event_t& e, double dt);
@@ -103,6 +108,19 @@ private:
     uint64_t rng_state_ = 0x243F6A8885A308D3ULL;
     int64_t last_config_poll_ns_ = 0;
     std::atomic<bool> initialized_{false};
+
+    // --- Time-based step counting (exact, immune to sensor-event sparsity) ---
+    // The step counter is computed as base + elapsed_time * cadence, using each
+    // event's own (real, monotonic) timestamp as "now". This removes the
+    // dependency on how frequently sensor events flow and the old dt clamp that
+    // caused large undercounts. Cadence changes are integrated piecewise: on a
+    // change we snapshot the steps-so-far into step_base_ and restart the
+    // segment clock.
+    int64_t step_start_ns_ = 0;     // segment start timestamp
+    double  step_base_ = 0.0;       // cumulative steps before current segment (+ real hw base)
+    float   seg_spm_ = 120.0f;      // cadence in effect for the current segment
+    bool    step_base_captured_ = false; // captured the real hw counter base once
+    long    detector_emitted_ = 0;  // whole steps already surfaced as detector events
 
     static constexpr double kTwoPi = 6.283185307179586476925286766559;
     static constexpr double kNsToSec = 1e-9;

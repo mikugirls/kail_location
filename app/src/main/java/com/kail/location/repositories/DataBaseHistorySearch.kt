@@ -95,7 +95,7 @@ class DataBaseHistorySearch(context: Context) : SQLiteOpenHelper(context, DB_NAM
                 contentValues.put(DB_COLUMN_TIMESTAMP, System.currentTimeMillis() / 1000)
                 saveHistorySearch(sqLiteDatabase, contentValues)
             } catch (e: Exception) {
-                e.printStackTrace()
+                KailLog.e(null, "DataBaseHistorySearch", "addHistorySearch failed", e)
             }
         }
     }

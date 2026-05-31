@@ -4,13 +4,13 @@ import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
 import android.database.sqlite.SQLiteDatabase
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import com.kail.location.models.HistoryRecord
 import com.kail.location.repositories.DataBaseHistoryLocation
 import com.kail.location.utils.GoUtils
+import com.kail.location.utils.KailLog
 import com.kail.location.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,13 +46,17 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
 
     private var allRecords: List<HistoryRecord> = emptyList()
 
+    companion object {
+        private const val TAG = "HistoryViewModel"
+    }
+
     init {
         try {
             db = dbHelper.writableDatabase
             recordArchive() // Auto-delete old records
             loadRecords()
         } catch (e: Exception) {
-            e.printStackTrace()
+            KailLog.e(getApplication(), TAG, "init failed", e)
         }
     }
 
@@ -143,7 +147,7 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
             }
             cursor.close()
         } catch (e: Exception) {
-            Log.e("HistoryViewModel", "ERROR - fetchAllRecord", e)
+            KailLog.e(getApplication(), TAG, "ERROR - fetchAllRecord", e)
         }
         return list
     }
@@ -168,7 +172,7 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
                 }
                 loadRecords()
             } catch (e: Exception) {
-                Log.e("HistoryViewModel", "ERROR - deleteRecord", e)
+                KailLog.e(getApplication(), TAG, "ERROR - deleteRecord", e)
             }
         }
     }
@@ -185,7 +189,7 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
                 DataBaseHistoryLocation.updateHistoryLocation(db!!, id.toString(), newName)
                 loadRecords()
             } catch (e: Exception) {
-                Log.e("HistoryViewModel", "ERROR - updateRecordName", e)
+                KailLog.e(getApplication(), TAG, "ERROR - updateRecordName", e)
             }
         }
     }
@@ -213,7 +217,7 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
                 arrayOf((System.currentTimeMillis() / 1000 - weekSecond).toString())
             )
         } catch (e: Exception) {
-            Log.e("HistoryViewModel", "ERROR - recordArchive", e)
+            KailLog.e(getApplication(), TAG, "ERROR - recordArchive", e)
         }
     }
     

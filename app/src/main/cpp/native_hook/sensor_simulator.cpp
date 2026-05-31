@@ -130,7 +130,36 @@ void SensorSimulator::EnsureInitialized(int64_t ts_ns) {
     rng_state_ = seed;
     
     current_spm_ = target_spm_;
+
+    // Anchor the time-based step segment at this first event.
+    step_start_ns_ = ts_ns;
+    step_base_ = 0.0;
+    seg_spm_ = target_spm_;
+    step_base_captured_ = false;
+    detector_emitted_ = 0;
     ALOGD("Initialized with timestamp: %lld", (long long)ts_ns);
+}
+
+// Re-anchor the current step segment: bank the steps accumulated so far into
+// step_base_ and restart the clock with the new cadence. This keeps the step
+// total continuous and exact across cadence changes.
+void SensorSimulator::RebaseStepSegment(int64_t ts_ns, float new_spm) {
+    step_base_ = StepsAt(ts_ns);
+    step_start_ns_ = ts_ns;
+    seg_spm_ = new_spm;
+}
+
+// Exact cumulative step total at the given (real, monotonic) timestamp:
+//   total = step_base_ + elapsed_seconds * (seg_spm_ / 60)
+// Using the event's own timestamp makes the count a pure function of real
+// elapsed time and the configured cadence — independent of how often / how
+// sparsely the framework delivers sensor events.
+double SensorSimulator::StepsAt(int64_t ts_ns) {
+    if (step_start_ns_ == 0) return step_base_;
+    double elapsed = static_cast<double>(ts_ns - step_start_ns_) * kNsToSec;
+    if (elapsed < 0.0) elapsed = 0.0;
+    double sps = static_cast<double>(seg_spm_) / 60.0;
+    return step_base_ + elapsed * sps;
 }
 
 void SensorSimulator::SmoothStepRate(double dt) {
@@ -302,39 +331,42 @@ void SensorSimulator::ApplyGyroscopeSine(sensors_event_t& e, double dt) {
     void SensorSimulator::ApplyStepCounter(sensors_event_t& e, double dt) {
         (void)dt;
 
-        // AdvancePhase() already incremented step_phase_acc_ by sps*dt.
-        // We just consume the integer part here.
-        int new_steps = static_cast<int>(step_phase_acc_);
-        step_phase_acc_ -= new_steps;
-
-        if (step_counter_ == 0.0 && e.data[0] > 0.0f) {
-            // Continue from the real hardware counter on first use
-            step_counter_ = static_cast<double>(e.data[0]);
+        // First time we see a real hardware counter value, fold it into the
+        // base so the spoofed counter continues from the device's real total
+        // (apps that diff against a previous reading stay consistent).
+        if (!step_base_captured_) {
+            step_base_captured_ = true;
+            if (e.data[0] > 0.0f) {
+                step_base_ += static_cast<double>(e.data[0]);
+            }
         }
 
-        step_counter_ += new_steps;
+        // Exact: base + real_elapsed_time * cadence. Monotonic non-decreasing.
+        double total = StepsAt(e.timestamp);
+        if (total < 0.0) total = 0.0;
 
-        if (step_counter_ < 0.0) step_counter_ = 0.0;
+        // step counter is cumulative and must never go backwards.
+        double floored = std::floor(total);
+        if (floored < step_counter_) floored = step_counter_;
+        step_counter_ = floored;
 
         e.data[0] = static_cast<float>(step_counter_);
     }
 
 
 void SensorSimulator::ApplyStepDetector(sensors_event_t& e, double dt) {
-    e.data[0] = 0.0f;
-    
-    int triggers = 0;
-    while (step_phase_acc_ >= 1.0) {
-        step_phase_acc_ -= 1.0;
-        triggers++;
+    (void)dt;
+
+    // Surface exactly one detector pulse per whole step that has elapsed in
+    // real time since the segment start. Tracked separately from the counter
+    // so an app reading both sensors gets a consistent cadence.
+    long whole = static_cast<long>(std::floor(StepsAt(e.timestamp)));
+    if (whole > detector_emitted_) {
+        detector_emitted_ = whole;
+        e.data[0] = 1.0f;   // a step occurred
+    } else {
+        e.data[0] = 0.0f;   // no new step in this event
     }
-    
-    if (triggers > 0) {
-        e.data[0] = 1.0f;
-    }
-    
-    double micro = NextSignedNoise(0.002);
-    step_phase_acc_ += micro * dt;
 }
 
 void SensorSimulator::ProcessSensorEvents(sensors_event_t* events, size_t count) {
@@ -360,7 +392,15 @@ void SensorSimulator::ProcessSensorEvents(sensors_event_t* events, size_t count)
         
         SmoothStepRate(dt);
         AdvancePhase(dt);
-        
+
+        // Keep the time-based step segment in sync with the smoothed cadence.
+        // Rebase (bank steps-so-far, restart the segment clock) whenever the
+        // effective cadence drifts, so the exact time-integration uses the
+        // current rate without losing or double-counting steps.
+        if (std::fabs(static_cast<double>(current_spm_) - static_cast<double>(seg_spm_)) > 0.5) {
+            RebaseStepSegment(ts, current_spm_);
+        }
+
         switch (e.type) {
             case TYPE_ACCELEROMETER:
                 ApplyAccelerometer(e, dt);
@@ -399,7 +439,11 @@ void SensorSimulator::ProcessSensorEvent(sensors_event_t& e) {
     
     SmoothStepRate(dt);
     AdvancePhase(dt);
-    
+
+    if (std::fabs(static_cast<double>(current_spm_) - static_cast<double>(seg_spm_)) > 0.5) {
+        RebaseStepSegment(ts, current_spm_);
+    }
+
     switch (e.type) {
         case TYPE_ACCELEROMETER:
             ApplyAccelerometer(e, dt);

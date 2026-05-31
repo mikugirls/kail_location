@@ -2,12 +2,17 @@ package com.kail.location.utils.service
 
 import com.baidu.mapapi.model.LatLng
 import com.kail.location.geo.GeoMath
+import com.kail.location.utils.KailLog
 import com.kail.location.utils.MapUtils
 
 /**
  * 负责路线点管理、沿路线前进、距离计算与进度汇报。
  */
 class RouteEngine {
+
+    private companion object {
+        const val TAG = "RouteEngine"
+    }
 
     private val routePoints: MutableList<Pair<Double, Double>> = mutableListOf()
     private val routeCumulativeDistances: MutableList<Double> = mutableListOf()
@@ -53,6 +58,7 @@ class RouteEngine {
         routeIndex = 0
         segmentProgressMeters = 0.0
         calculateRouteDistances()
+        KailLog.i(null, TAG, "setupFromArray: ${routePoints.size} points, coordType=$coordType, totalDistance=${"%.1f".format(totalDistance)}m")
     }
 
     fun setLoop(loop: Boolean) {
@@ -92,6 +98,7 @@ class RouteEngine {
         currentLng = a.first + dLngDeg * f
         currentLat = a.second + dLatDeg * f
         currentBea = GeoMath.bearingDegrees(a.first, a.second, b.first, b.second)
+        KailLog.d(null, TAG, "seekToRatio: ratio=${"%.3f".format(ratio)} -> index=$routeIndex lat=$currentLat lng=$currentLng")
     }
 
     fun advance(distanceMeters: Double) {
@@ -105,6 +112,7 @@ class RouteEngine {
                     segmentProgressMeters = 0.0
                     continue
                 } else {
+                    KailLog.i(null, TAG, "advance: route finished (no loop), clearing")
                     clear()
                     break
                 }

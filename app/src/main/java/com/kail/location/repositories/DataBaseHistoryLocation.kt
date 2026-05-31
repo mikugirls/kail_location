@@ -4,7 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
-import android.util.Log
+import com.kail.location.utils.KailLog
 
 /**
  * 历史定位数据的 SQLite 辅助类。
@@ -72,7 +72,7 @@ class DataBaseHistoryLocation(context: Context) : SQLiteOpenHelper(context, DB_N
                 )
                 sqLiteDatabase.insert(TABLE_NAME, null, contentValues)
             } catch (e: Exception) {
-                Log.e("DataBaseHistoryLocation", "DATABASE: insert error", e)
+                KailLog.e(null, "DataBaseHistoryLocation", "DATABASE: insert error", e)
             }
         }
 
@@ -122,7 +122,7 @@ class DataBaseHistoryLocation(context: Context) : SQLiteOpenHelper(context, DB_N
                 contentValues.put(DB_COLUMN_LOCATION, location)
                 sqLiteDatabase.update(TABLE_NAME, contentValues, "$DB_COLUMN_ID = ?", arrayOf(locID))
             } catch (e: Exception) {
-                Log.e("DataBaseHistoryLocation", "DATABASE: update error", e)
+                KailLog.e(null, "DataBaseHistoryLocation", "DATABASE: update error", e)
             }
         }
     }

@@ -23,6 +23,7 @@ import java.util.Date
 import java.util.Locale
 
 object GoUtils {
+    private const val TAG = "GoUtils"
     /**
      * 判断是否开启了开发者选项。
      *
@@ -199,7 +200,7 @@ object GoUtils {
             )
             return packageInfo.versionName ?: ""
         } catch (e: Exception) {
-            e.printStackTrace()
+            KailLog.e(context, TAG, "getVersionName failed", e)
         }
         return ""
     }
@@ -224,7 +225,7 @@ object GoUtils {
                 packageInfo.versionCode
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            KailLog.e(context, TAG, "getVersionCode failed", e)
         }
         return 0
     }
@@ -245,7 +246,7 @@ object GoUtils {
             val labelRes = applicationInfo?.labelRes ?: 0
             return context.resources.getString(labelRes)
         } catch (e: PackageManager.NameNotFoundException) {
-            e.printStackTrace()
+            KailLog.e(context, TAG, "getAppName failed", e)
         }
 
         return null
@@ -284,7 +285,7 @@ object GoUtils {
                     intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     context.startActivity(intent)
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    KailLog.e(context, TAG, "showEnableMockLocationDialog failed", e)
                 }
             }
             .setNegativeButton(context.getString(R.string.goutils_cancel)) { dialog, which ->
@@ -311,7 +312,7 @@ object GoUtils {
                     intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     context.startActivity(intent)
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    KailLog.e(context, TAG, "showEnableFloatWindowDialog failed", e)
                 }
             }
             .setNegativeButton(context.getString(R.string.goutils_cancel)) { dialog, which ->
@@ -334,7 +335,7 @@ object GoUtils {
                     val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
                     context.startActivity(intent)
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    KailLog.e(context, TAG, "showEnableGpsDialog failed", e)
                 }
             }
             .setNegativeButton(context.getString(R.string.goutils_cancel)) { dialog, which ->
@@ -357,7 +358,7 @@ object GoUtils {
                     val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
                     context.startActivity(intent)
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    KailLog.e(context, TAG, "showDisableWifiDialog failed", e)
                 }
             }
             .setNegativeButton(context.getString(R.string.goutils_ignore)) { dialog, which ->

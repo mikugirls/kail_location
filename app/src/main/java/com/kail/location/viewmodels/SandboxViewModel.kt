@@ -10,12 +10,17 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.kail.location.sandbox.SandboxManager
+import com.kail.location.utils.KailLog
 
 /**
  * 沙盒模式的 ViewModel。
  * 负责管理 BlackBox 沙盒中的应用列表、安装、卸载、启动等操作。
  */
 class SandboxViewModel(application: Application) : AndroidViewModel(application) {
+
+    companion object {
+        private const val TAG = "SandboxViewModel"
+    }
 
     private val _sandboxApps = MutableStateFlow<List<SandboxManager.SandboxAppInfo>>(emptyList())
     val sandboxApps: StateFlow<List<SandboxManager.SandboxAppInfo>> = _sandboxApps.asStateFlow()
@@ -50,6 +55,7 @@ class SandboxViewModel(application: Application) : AndroidViewModel(application)
                     _isLoading.value = false
                 }
             } catch (e: Exception) {
+                KailLog.e(getApplication(), TAG, "loadSandboxApps failed", e)
                 withContext(Dispatchers.Main) {
                     _toastMessage.value = "加载沙盒应用失败: ${e.message}"
                     _isLoading.value = false
@@ -64,16 +70,16 @@ class SandboxViewModel(application: Application) : AndroidViewModel(application)
     fun loadSystemApps() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                android.util.Log.d("SandboxViewModel", "Loading system apps...")
+                KailLog.d(getApplication(), TAG, "Loading system apps...")
                 _isLoading.value = true
                 val apps = SandboxManager.getSystemApps()
-                android.util.Log.d("SandboxViewModel", "Loaded ${apps.size} system apps")
+                KailLog.d(getApplication(), TAG, "Loaded ${apps.size} system apps")
                 withContext(Dispatchers.Main) {
                     _systemApps.value = apps
                     _isLoading.value = false
                 }
             } catch (e: Exception) {
-                android.util.Log.e("SandboxViewModel", "Error loading system apps: ${e.message}", e)
+                KailLog.e(getApplication(), TAG, "Error loading system apps: ${e.message}", e)
                 withContext(Dispatchers.Main) {
                     _toastMessage.value = "加载系统应用失败: ${e.message}"
                     _isLoading.value = false

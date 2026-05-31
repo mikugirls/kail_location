@@ -8,12 +8,17 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kail.location.models.UpdateInfo
 import com.kail.location.utils.UpdateChecker
+import com.kail.location.utils.KailLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class WelcomeViewModel(application: Application) : AndroidViewModel(application) {
+    companion object {
+        private const val TAG = "WelcomeViewModel"
+    }
+
     private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)
     val updateInfo: StateFlow<UpdateInfo?> = _updateInfo.asStateFlow()
 
@@ -81,7 +86,8 @@ class WelcomeViewModel(application: Application) : AndroidViewModel(application)
                     outFile
                 )
                 _installUri.value = uri
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                KailLog.e(getApplication(), TAG, "startDownload: download update failed", e)
                 _isDownloading.value = false
             } finally {
                 _isDownloading.value = false

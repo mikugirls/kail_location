@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import com.kail.location.auth.UsageManager
+import com.kail.location.utils.KailLog
 
 /**
  * 独立模拟页面的 ViewModel。
@@ -26,6 +27,7 @@ class IndependentSimulationViewModel(application: Application) : AndroidViewMode
     private val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(application)
 
     companion object {
+        private const val TAG = "IndependentSimulationVM"
         const val KEY_INDEPENDENT_ENABLED = "independent_enabled"
         const val KEY_INDEPENDENT_TARGET_PACKAGES = "independent_target_packages"
     }
@@ -99,7 +101,7 @@ class IndependentSimulationViewModel(application: Application) : AndroidViewMode
             }
             ctx.startService(intent)
         } catch (e: Exception) {
-            e.printStackTrace()
+            KailLog.e(getApplication(), TAG, "applyAllowListToInjection failed", e)
         }
     }
 }

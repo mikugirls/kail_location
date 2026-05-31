@@ -1,6 +1,7 @@
 package com.kail.location.sandbox
 
 import android.content.Context
+import com.kail.location.utils.KailLog
 import org.json.JSONObject
 import java.io.File
 
@@ -9,6 +10,7 @@ import java.io.File
  * 用于在宿主应用和沙盒应用之间传递步频模拟参数。
  */
 object SandboxStepConfig {
+    private const val TAG = "SandboxStepConfig"
     private const val CONFIG_FILE = "sandbox_step_config.json"
     private const val CONFIG_TIMEOUT_MS = 5 * 60 * 1000L
 
@@ -29,7 +31,7 @@ object SandboxStepConfig {
             }
             file.writeText(json.toString())
         } catch (e: Exception) {
-            android.util.Log.e("SandboxStepConfig", "Failed to write config: ${e.message}")
+            KailLog.e(context, TAG, "Failed to write config", e)
         }
     }
 
@@ -54,7 +56,7 @@ object SandboxStepConfig {
             val spm = json.optDouble("spm", 120.0).toFloat()
             Pair(enabled, spm)
         } catch (e: Exception) {
-            android.util.Log.e("SandboxStepConfig", "Failed to read config: ${e.message}")
+            KailLog.e(context, TAG, "Failed to read config", e)
             Pair(false, 120f)
         }
     }
@@ -71,7 +73,7 @@ object SandboxStepConfig {
                 file.delete()
             }
         } catch (e: Exception) {
-            android.util.Log.e("SandboxStepConfig", "Failed to clear config: ${e.message}")
+            KailLog.e(context, TAG, "Failed to clear config", e)
         }
     }
 }

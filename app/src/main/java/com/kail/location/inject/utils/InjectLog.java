@@ -107,6 +107,17 @@ public final class InjectLog {
         emit(tag, 'v', true, parts);
     }
 
+    /**
+     * 重要的一次性诊断日志：无论开关如何，<b>始终</b>输出到 Logcat 并落盘。
+     *
+     * <p>用于低频、高价值、需要事后排查的关键状态（如 ArtMethod 布局自动探测结果、
+     * 注入初始化结论）。这类信息在我们手头没有的设备上排查问题时尤为重要，因此不能
+     * 依赖标记文件（{@code .kail_debug}/{@code .kail_log_file}）是否存在。
+     */
+    public static void persist(String tag, Object... parts) {
+        emitAlways(tag, 'i', parts);
+    }
+
     /** 记录异常（附带完整堆栈）。 */
     public static void e(String tag, String message, Throwable tr) {
         emit(tag, 'e', false, message + "\n" + stackTrace(tr));
@@ -165,6 +176,36 @@ public final class InjectLog {
                     + tag + " " + caller + " | " + body + suffix;
             writeFile(fileMessage);
         }
+    }
+
+    /**
+     * 与 {@link #emit} 类似，但<b>无视所有开关</b>：始终输出到 Logcat（及 Xposed）并落盘。
+     * 仅供 {@link #persist} 使用，承载低频高价值的一次性诊断信息。
+     */
+    private static void emitAlways(String tag, char level, Object... parts) {
+        String caller = callerInfo();
+        String body = join(parts);
+        String thread = Thread.currentThread().getName();
+        String logcatTag = TAG_PREFIX + tag;
+        String logcatMessage = "[" + thread + "] " + caller + " | " + body;
+
+        Method m = xposedLogMethod();
+        if (m != null) {
+            try {
+                m.invoke(null, logcatTag + ": " + logcatMessage);
+            } catch (Throwable ignored) {
+            }
+        }
+
+        switch (level) {
+            case 'w': Log.w(logcatTag, logcatMessage); break;
+            case 'e': Log.e(logcatTag, logcatMessage); break;
+            default:  Log.i(logcatTag, logcatMessage); break;
+        }
+
+        String fileMessage = Character.toUpperCase(level) + " [" + processName() + "/" + thread + "] "
+                + tag + " " + caller + " | " + body;
+        writeFile(fileMessage);
     }
 
     private static String join(Object... parts) {

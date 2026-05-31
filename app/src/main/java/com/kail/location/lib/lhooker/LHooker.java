@@ -48,6 +48,13 @@ public class LHooker {
 
     private static native boolean shouldVisiblyInit();
 
+    /**
+     * Returns the native init-time diagnostic log (ArtMethod layout probe
+     * results + final offsets). Persisted to the app log file via InjectLog
+     * right after init() so the auto-detected layout is inspectable offline.
+     */
+    public static native String nativeGetInitLog();
+
     public static native long suspendAll();
 
     private static native int visiblyInit(long threadHandle);
@@ -349,8 +356,33 @@ public class LHooker {
                 }
             }
             initialized = init(sdkInt) == 0;
+            persistInitLog();
         } catch (Throwable th2) {
             th2.printStackTrace();
+        }
+    }
+
+    /**
+     * Pull the native init-time diagnostic log (ArtMethod layout auto-detection
+     * results, final offsets, fail-safe outcome) and write it into the app's
+     * own log file via InjectLog so it survives past the volatile logcat buffer
+     * and can be inspected when troubleshooting on devices we don't own.
+     */
+    private static void persistInitLog() {
+        try {
+            String summary = nativeGetInitLog();
+            if (summary == null || summary.isEmpty()) {
+                return;
+            }
+            com.kail.location.inject.utils.InjectLog.persist("LHooker",
+                    "init=" + (initialized ? "OK" : "FAILED"));
+            for (String line : summary.split("\n")) {
+                if (!line.trim().isEmpty()) {
+                    com.kail.location.inject.utils.InjectLog.persist("LHooker", line);
+                }
+            }
+        } catch (Throwable t) {
+            t.printStackTrace();
         }
     }
 }

@@ -32,10 +32,14 @@
 #include <cstdlib>
 #include <cstring>
 #include <cerrno>
+#include <cstdarg>
+#include <string>
 
 #include <jni.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #include <android/log.h>
 
@@ -69,6 +73,68 @@ static bool gUseExtendedOrBit      = false;
 static bool gUseApi31AndMask       = false;
 
 // ---------------------------------------------------------------------------
+// Init-time log buffer.
+//
+// The ArtMethod layout probe runs inside system_server during init().  Its
+// results go to logcat (KLOG*) but logcat is volatile and easy to miss.  We
+// also accumulate a human-readable summary here so the Java side can pull it
+// out via nativeGetInitLog() right after init() and persist it through
+// InjectLog into the app's own log file (/sdcard/Documents/KailLocation/logs).
+// This makes the auto-detected layout permanently inspectable for debugging.
+// ---------------------------------------------------------------------------
+static std::string gInitLog;
+
+static void initLogAppend(const char *line) {
+  gInitLog.append(line);
+  gInitLog.push_back('\n');
+}
+
+// Append a printf-style formatted line to the init-log buffer (logcat is done
+// separately by the caller via KLOG*).
+static void initLogf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+static void initLogf(const char *fmt, ...) {
+  char buf[256];
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(buf, sizeof(buf), fmt, ap);
+  va_end(ap);
+  initLogAppend(buf);
+}
+
+// Persist the init-log to a world-writable file that any injected process
+// (including system_server, which CANNOT write to the app's /sdcard log dir)
+// is allowed to append to. ServiceGoRoot creates /data/kail-loc as 0777, so
+// the system_server-hosted hook engine can drop diagnostics here even though
+// scoped storage blocks it from the normal app log path. The Java side mirrors
+// this into the app log via InjectLog when it runs in a storage-permitted app.
+static void writeInitLogToFile() {
+  if (gInitLog.empty())
+    return;
+  // Try the root deploy dir first (always 0777), fall back to the lib dir.
+  const char *paths[] = {
+      "/data/kail-loc/lhooker_init.log",
+      "/data/local/kail-lib/lhooker_init.log",
+  };
+  for (const char *path : paths) {
+    int fd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0666);
+    if (fd < 0)
+      continue;
+    char hdr[128];
+    int hn = snprintf(hdr, sizeof(hdr),
+                      "===== LHooker init (pid=%d, ptr=%zu) =====\n",
+                      getpid(), sizeof(void *));
+    if (hn > 0)
+      (void)!write(fd, hdr, (size_t)hn);
+    (void)!write(fd, gInitLog.data(), gInitLog.size());
+    fchmod(fd, 0666);
+    close(fd);
+    KLOGI(kTag, "init log written to %s", path);
+    return;
+  }
+  KLOGW(kTag, "could not persist init log to any path");
+}
+
+// ---------------------------------------------------------------------------
 // Trampoline templates and entry-offset patching.
 // ---------------------------------------------------------------------------
 #if defined(__LP64__)
@@ -79,15 +145,19 @@ static bool gUseApi31AndMask       = false;
 //   [8]  0xF8400010  ldr x16, [x0, #imm]   (imm patched via bytes 9..10)
 //   [12] 0xD61F0200  br  x16
 //   [16] ArtMethod*
-static uint8_t gTrampoline[16] = {
+static const uint8_t kTrampolineBase[16] = {
     0x00, 0x00, 0x00, 0x00,
     0x60, 0x00, 0x00, 0x58,
     0x10, 0x00, 0x40, 0xf8,
     0x00, 0x02, 0x1f, 0xd6,
 };
+static uint8_t gTrampoline[16];
 static const size_t kNoBackupSize = 24;
 
 static void setupTrampoline(int entryOffset) {
+  // Restore the pristine template first so this is idempotent: the runtime
+  // ArtMethod probe may call us a second time with a refined entry offset.
+  memcpy(gTrampoline, kTrampolineBase, sizeof(gTrampoline));
   // Mirror the decompiled bit-twiddle that folds the entry offset into the
   // ldr x16,[x0,#imm] immediate (bytes 9 and 10 of the template).
   gTrampoline[9]  |= (uint8_t)(16 * (entryOffset & 0x0f));
@@ -107,14 +177,18 @@ static void *emitTrampoline(uint8_t *slot, uintptr_t method) {
 //   [4]  0xE59F0000  ldr r0, [pc, #0]      ; r0 = *(base+12) = ArtMethod*
 //   [8]  0xE590F000  ldr pc, [r0, #imm]    ; imm = byte[8] (entry offset)
 //   [12] ArtMethod*
-static uint8_t gTrampoline[12] = {
+static const uint8_t kTrampolineBase[12] = {
     0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x9f, 0xe5,
     0x00, 0xf0, 0x90, 0xe5,
 };
+static uint8_t gTrampoline[12];
 static const size_t kNoBackupSize = 16;
 
 static void setupTrampoline(int entryOffset) {
+  // Restore the pristine template first so this is idempotent (the runtime
+  // ArtMethod probe may refine the entry offset and call us again).
+  memcpy(gTrampoline, kTrampolineBase, sizeof(gTrampoline));
   // Decompiled setupTrampoline stored the entry offset into byte_6C48, which is
   // byte 8 of the block: the low byte of "ldr pc, [r0, #imm]".
   gTrampoline[8] = (uint8_t)entryOffset;
@@ -231,6 +305,94 @@ static int installHook(uintptr_t target, uintptr_t hook) {
 }
 
 // ---------------------------------------------------------------------------
+// Runtime ArtMethod layout probe.
+//
+// On ART a jmethodID *is* the ArtMethod*, and all methods declared in one class
+// live in a single contiguous LengthPrefixedArray<ArtMethod>. The minimum
+// positive gap between several sibling methods' pointers is therefore the exact
+// sizeof(ArtMethod) on the running device — no per-SDK table required. The
+// quick entry point is always the last pointer-sized field, so its offset is
+// (size - sizeof(void*)).
+//
+// Returns true and fills *outSize / *outEntryOff on success.
+// ---------------------------------------------------------------------------
+static bool probeArtMethodLayout(JNIEnv *env, int *outSize, int *outEntryOff) {
+  jclass probe = env->FindClass("com/kail/location/lib/lhooker/ArtMethodProbe");
+  if (!probe) {
+    env->ExceptionClear();
+    KLOGW(kTag, "probe: ArtMethodProbe class not found");
+    return false;
+  }
+
+  static const char *kNames[] = {
+      "m0", "m1", "m2", "m3", "m4", "m5",
+      "m6", "m7", "m8", "m9", "m10", "m11",
+  };
+  const int kCount = (int)(sizeof(kNames) / sizeof(kNames[0]));
+
+  uintptr_t addrs[12];
+  int n = 0;
+  for (int i = 0; i < kCount; i++) {
+    jmethodID mid = env->GetStaticMethodID(probe, kNames[i], "()V");
+    if (!mid) {
+      env->ExceptionClear();
+      continue;
+    }
+    addrs[n++] = (uintptr_t)mid;  // jmethodID == ArtMethod* on ART
+  }
+  env->DeleteLocalRef(probe);
+
+  KLOGI(kTag, "probe: resolved %d/%d ArtMethod pointers", n, kCount);
+  initLogf("probe: resolved %d/%d ArtMethod pointers", n, kCount);
+  for (int i = 0; i < n; i++) {
+    KLOGI(kTag, "probe:   m%d @ %p", i, (void *)addrs[i]);
+  }
+
+  if (n < 3) {
+    KLOGW(kTag, "probe: only %d method ids resolved, too few to measure", n);
+    initLogf("probe: FAILED, only %d method ids (need >=3)", n);
+    return false;
+  }
+
+  // Minimum positive pairwise gap == sizeof(ArtMethod). Methods may not be in
+  // declaration order in memory, so scan all pairs rather than assuming
+  // monotonic addresses.
+  uintptr_t best = 0;
+  for (int i = 0; i < n; i++) {
+    for (int j = i + 1; j < n; j++) {
+      uintptr_t d = addrs[i] > addrs[j] ? addrs[i] - addrs[j] : addrs[j] - addrs[i];
+      if (d != 0 && (best == 0 || d < best))
+        best = d;
+    }
+  }
+
+  KLOGI(kTag, "probe: minimum pairwise gap = %zu bytes", (size_t)best);
+  initLogf("probe: minimum pairwise gap = %zu bytes", (size_t)best);
+
+  // Sanity bounds: a real ArtMethod is small and pointer-aligned. Anything
+  // outside this range means the measurement is unreliable (e.g. methods landed
+  // in different arrays), so we reject and fall back to the SDK table.
+  const uintptr_t kMin = 16;
+  const uintptr_t kMax = 64;
+  if (best < kMin || best > kMax || (best % sizeof(void *)) != 0) {
+    KLOGW(kTag, "probe: measured ArtMethod size %zu out of range; rejecting",
+          (size_t)best);
+    initLogf("probe: REJECTED measured size %zu (out of range/unaligned)",
+             (size_t)best);
+    return false;
+  }
+
+  *outSize = (int)best;
+  *outEntryOff = (int)best - (int)sizeof(void *);
+  KLOGI(kTag, "probe: SUCCESS -> ArtMethod size=%d, quick-entry-point offset=%d "
+              "(pointer size=%zu)",
+        *outSize, *outEntryOff, sizeof(void *));
+  initLogf("probe: SUCCESS ArtMethod size=%d quick-entry-point offset=%d (ptr=%zu)",
+           *outSize, *outEntryOff, sizeof(void *));
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // JNI exports
 // ---------------------------------------------------------------------------
 extern "C" {
@@ -245,6 +407,9 @@ Java_com_kail_location_lib_lhooker_LHooker_init(JNIEnv *env, jobject, jint sdkIn
 
   gSdkInt = sdkInt;
   KLOGI(kTag, "SDK %d", sdkInt);
+  gInitLog.clear();
+  initLogf("LHooker init: SDK=%d ABI=%s", sdkInt,
+           sizeof(void *) == 8 ? "arm64" : "arm");
 
   // Common access-flag switches.
   gAccessFlag4ByteOffset = (sdkInt >= 24);
@@ -273,15 +438,23 @@ Java_com_kail_location_lib_lhooker_LHooker_init(JNIEnv *env, jobject, jint sdkIn
     case 32:
     case 33:
     case 34:
-    case 35: {
+    case 35:
+    case 36:
+    default: {
+      // SDK 31..36 (Android 12..16) share the same ArtMethod layout
+      // (entry-point @24, size 32 on arm64). Newer/unknown SDKs fall through
+      // here too: assume the latest known-good layout rather than leaving the
+      // offsets at 0, which would make installHook overwrite the ArtMethod's
+      // declaring_class field and crash system_server. ART's ArtMethod has not
+      // changed size since API 31.
+      if (sdkInt > 36) {
+        KLOGW(kTag, "SDK %d newer than known; using API 31-36 ArtMethod layout", sdkInt);
+      }
       jclass executable = env->FindClass("java/lang/reflect/Executable");
       gArtMethodField = env->GetFieldID(executable, "artMethod", "J");
       gEntryPointOffset = 24; gArtMethodSize = 32;
       break;
     }
-    default:
-      KLOGE(kTag, "Unsupported SDK %d", sdkInt);
-      break;
   }
 #else
   switch (sdkInt) {
@@ -304,19 +477,76 @@ Java_com_kail_location_lib_lhooker_LHooker_init(JNIEnv *env, jobject, jint sdkIn
     case 32:
     case 33:
     case 34:
-    case 35: {
+    case 35:
+    case 36:
+    default: {
+      // SDK 31..36 (Android 12..16) share the same 32-bit ArtMethod layout
+      // (entry-point @20, size 24). Unknown newer SDKs fall back here too,
+      // rather than leaving offsets at 0 (which corrupts the ArtMethod and
+      // crashes system_server).
+      if (sdkInt > 36) {
+        KLOGW(kTag, "SDK %d newer than known; using API 31-36 ArtMethod layout", sdkInt);
+      }
       jclass executable = env->FindClass("java/lang/reflect/Executable");
       gArtMethodField = env->GetFieldID(executable, "artMethod", "J");
       gEntryPointOffset = 20; gArtMethodSize = 24;
       break;
     }
-    default:
-      KLOGE(kTag, "Unsupported SDK %d", sdkInt);
-      break;
   }
 #endif
 
   setupTrampoline(gEntryPointOffset);
+
+  // Prefer runtime-measured layout over the static SDK table. This makes the
+  // engine version-agnostic: on any ROM (including future Android releases) the
+  // probe measures the true sizeof(ArtMethod) and derives the quick-entry-point
+  // offset, so we never corrupt system_server with a stale/zero offset.
+  {
+    int probedSize = 0, probedEntry = 0;
+    if (probeArtMethodLayout(env, &probedSize, &probedEntry)) {
+      if (probedEntry != gEntryPointOffset || probedSize != gArtMethodSize) {
+        KLOGI(kTag,
+              "ArtMethod layout: table(entry=%d,size=%d) -> probed(entry=%d,size=%d)",
+              gEntryPointOffset, gArtMethodSize, probedEntry, probedSize);
+        initLogf("ArtMethod layout: table(entry=%d,size=%d) -> probed(entry=%d,size=%d)",
+                 gEntryPointOffset, gArtMethodSize, probedEntry, probedSize);
+      } else {
+        KLOGI(kTag, "ArtMethod layout probe confirms table (entry=%d,size=%d)",
+              probedEntry, probedSize);
+        initLogf("ArtMethod layout probe confirms table (entry=%d,size=%d)",
+                 probedEntry, probedSize);
+      }
+      gEntryPointOffset = probedEntry;
+      gArtMethodSize    = probedSize;
+      setupTrampoline(gEntryPointOffset);
+    } else {
+      KLOGW(kTag, "ArtMethod probe failed; using SDK table (entry=%d,size=%d)",
+            gEntryPointOffset, gArtMethodSize);
+      initLogf("ArtMethod probe failed; using SDK table (entry=%d,size=%d)",
+               gEntryPointOffset, gArtMethodSize);
+    }
+  }
+
+  // Fail-safe: never proceed with a zero entry-point offset or zero ArtMethod
+  // size. installHook() writes the trampoline pointer to
+  // *(target + gEntryPointOffset); if that offset were 0 it would clobber the
+  // ArtMethod's declaring_class_ field and crash system_server. The runtime
+  // probe + per-API table + API 31-36 fallback guarantee non-zero values, but
+  // if everything fails we refuse to install rather than corrupt ART. Hooks
+  // simply won't take effect.
+  if (gEntryPointOffset == 0 || gArtMethodSize == 0) {
+    KLOGE(kTag, "refusing to init: bad ArtMethod layout for SDK %d "
+                "(entryPoint=%d size=%d). Hooks disabled to protect system_server.",
+          gSdkInt, gEntryPointOffset, gArtMethodSize);
+    initLogf("INIT FAILED: bad layout (entry=%d size=%d); hooks disabled to protect system_server",
+             gEntryPointOffset, gArtMethodSize);
+    writeInitLogToFile();
+    gInited = -1;
+    return -1;
+  }
+
+  initLogf("LHooker init OK: using entry=%d size=%d", gEntryPointOffset, gArtMethodSize);
+  writeInitLogToFile();
   gInited = 0;
   return 0;
 }
@@ -411,6 +641,14 @@ Java_com_kail_location_lib_lhooker_LHooker_hookMethodNative(
 JNIEXPORT jboolean JNICALL
 Java_com_kail_location_lib_lhooker_LHooker_shouldVisiblyInit(JNIEnv *, jobject) {
   return gSdkInt > 29 ? JNI_TRUE : JNI_FALSE;
+}
+
+// Return the accumulated init-time diagnostic log (ArtMethod layout probe
+// results, final offsets, fail-safe outcome) so the Java side can persist it
+// through InjectLog into the app's own log file for offline troubleshooting.
+JNIEXPORT jstring JNICALL
+Java_com_kail_location_lib_lhooker_LHooker_nativeGetInitLog(JNIEnv *env, jobject) {
+  return env->NewStringUTF(gInitLog.c_str());
 }
 
 // ---------------------------------------------------------------------------

@@ -2,8 +2,11 @@ package com.kail.location.utils
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.database.Cursor
+import android.database.DatabaseUtils
 import android.net.Uri
 import androidx.preference.PreferenceManager
+import com.kail.location.repositories.DataBaseHistoryLocation
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -18,8 +21,8 @@ import org.json.JSONObject
  * SharedPreferences 的 `setting_run_mode`。不同模式下抽屉菜单不同、数据存储位置
  * 也不同，因此导出 / 导入时按「模式分组 + 菜单」组织类别：
  *
- * - **通用（所有模式，含 developer）**：设置、路线模拟、NFC 模拟 —— 均存默认
- *   SharedPreferences，所有模式共享。
+ * - **通用（所有模式，含 developer）**：位置模拟、设置、路线模拟、NFC 模拟 —— 位置模拟
+ *   存 SQLite（`HistoryLocation.db`），其余均存默认 SharedPreferences，所有模式共享。
  * - **Root 模式**：独立模拟、WiFi 模拟、基站模拟 —— 存默认 SharedPreferences，但仅在
  *   root 模式菜单中出现。
  * - **沙盒模式**：沙盒引擎 —— 存 BlackBox 独立的 `AppSharedPreferenceDelegate`
@@ -30,7 +33,8 @@ import org.json.JSONObject
  * developer 模式无专属菜单，仅复用「通用」分组数据，故不单列。
  *
  * ### 备份文件结构
- * 备份文件本质是 JSON 文本（`.bak` 仅为后缀）：
+ * 备份文件本质是 JSON 文本（`.bak` 仅为后缀）。类别值有两种形态：
+ * SharedPreferences 类别为「键值对象」，SQLite 类别为「行数组」。
  * ```json
  * {
  *   "format": "kail_location_backup",
@@ -38,13 +42,16 @@ import org.json.JSONObject
  *   "exportedAt": 1700000000000,
  *   "appVersion": "x.y.z",
  *   "categories": {
- *     "<categoryId>": {
+ *     "<prefsCategoryId>": {
  *       "<prefKey>": { "t": "s|b|i|f|l|ss", "v": <value> }
- *     }
+ *     },
+ *     "<sqliteCategoryId>": [
+ *       { "<column>": { "t": "s|i|l|f", "v": <value> } }
+ *     ]
  *   }
  * }
  * ```
- * 每个偏好项保留其原始类型（String / Boolean / Int / Float / Long / StringSet）。
+ * 每个偏好项 / 列值保留其原始类型（String / Boolean / Int / Float / Long / StringSet）。
  */
 object DataTransferManager {
 
@@ -59,6 +66,11 @@ object DataTransferManager {
 
     /** 沙盒引擎（BlackBox）使用的独立 SharedPreferences 文件名。 */
     private const val SANDBOX_PREFS_NAME = "AppSharedPreferenceDelegate"
+
+    /**
+     * 数据存储后端。大多数类别存 SharedPreferences；位置模拟历史存 SQLite。
+     */
+    enum class Source { PREFS, SQLITE }
 
     /**
      * 数据类别所属的运行模式分组，用于在 UI 上把菜单按模式分清楚。
@@ -92,6 +104,8 @@ object DataTransferManager {
      *   2）默认 prefs 中按「页面」而非「前缀」精确划定一组 key（如 Xposed 设置页）。
      * @property matches 用于判断默认 SharedPreferences 中某个 key 是否属于本类别
      *   （仅在 [prefsName] 与 [explicitKeys] 均为 null 时使用）。
+     * @property source 数据存储后端：[Source.PREFS]（默认）走 SharedPreferences 逻辑；
+     *   [Source.SQLITE] 表示该类别数据存于 SQLite 表，导出 / 导入走行级序列化。
      */
     data class Category(
         val id: String,
@@ -99,7 +113,8 @@ object DataTransferManager {
         val group: ModeGroup,
         val prefsName: String? = null,
         val explicitKeys: List<String>? = null,
-        val matches: (String) -> Boolean = { false }
+        val matches: (String) -> Boolean = { false },
+        val source: Source = Source.PREFS
     )
 
     /**
@@ -107,6 +122,12 @@ object DataTransferManager {
      */
     val categories: List<Category> = listOf(
         // ── 通用（所有模式） ──
+        Category(
+            id = "location",
+            titleRes = com.kail.location.R.string.nav_menu_location_simulation,
+            group = ModeGroup.GENERAL,
+            source = Source.SQLITE
+        ),
         Category(
             id = "settings",
             titleRes = com.kail.location.R.string.nav_menu_settings,
@@ -215,7 +236,10 @@ object DataTransferManager {
     fun availableEntryCounts(context: Context): Map<String, Int> {
         val result = mutableMapOf<String, Int>()
         categories.forEach { category ->
-            result[category.id] = collectEntries(context, category).size
+            result[category.id] = when (category.source) {
+                Source.SQLITE -> sqliteRowCount(context, category)
+                Source.PREFS -> collectEntries(context, category).size
+            }
         }
         return result
     }
@@ -236,13 +260,18 @@ object DataTransferManager {
 
             val categoriesJson = JSONObject()
             categories.filter { it.id in selectedCategoryIds }.forEach { category ->
-                val entries = collectEntries(context, category)
-                val entriesJson = JSONObject()
-                entries.forEach { (key, value) ->
-                    val typed = encodeValue(value) ?: return@forEach
-                    entriesJson.put(key, typed)
+                when (category.source) {
+                    Source.SQLITE -> categoriesJson.put(category.id, exportSqlite(context, category))
+                    Source.PREFS -> {
+                        val entries = collectEntries(context, category)
+                        val entriesJson = JSONObject()
+                        entries.forEach { (key, value) ->
+                            val typed = encodeValue(value) ?: return@forEach
+                            entriesJson.put(key, typed)
+                        }
+                        categoriesJson.put(category.id, entriesJson)
+                    }
                 }
-                categoriesJson.put(category.id, entriesJson)
             }
             root.put("categories", categoriesJson)
 
@@ -272,9 +301,13 @@ object DataTransferManager {
             val keys = categoriesJson.keys()
             while (keys.hasNext()) {
                 val id = keys.next()
-                if (categoryById(id) == null) continue
-                val entries = categoriesJson.optJSONObject(id) ?: JSONObject()
-                present[id] = entries.length()
+                val category = categoryById(id) ?: continue
+                present[id] = when (category.source) {
+                    // SQLite 类别：值为行数组
+                    Source.SQLITE -> (categoriesJson.optJSONArray(id) ?: JSONArray()).length()
+                    // Prefs 类别：值为键值对象
+                    Source.PREFS -> (categoriesJson.optJSONObject(id) ?: JSONObject()).length()
+                }
             }
             ParsedBackup(
                 exportedAt = root.optLong("exportedAt", 0L),
@@ -298,20 +331,29 @@ object DataTransferManager {
         val categoriesJson = backup.json.optJSONObject("categories") ?: return imported
         selectedCategoryIds.forEach { id ->
             val category = categoryById(id) ?: return@forEach
-            val entriesJson = categoriesJson.optJSONObject(id) ?: return@forEach
             runCatching {
-                val prefs = prefsFor(context, category)
-                val editor = prefs.edit()
-                val keys = entriesJson.keys()
-                while (keys.hasNext()) {
-                    val key = keys.next()
-                    // 命名 prefs 限定了 key 范围时，跳过范围外的 key，避免污染目标文件
-                    if (category.explicitKeys != null && key !in category.explicitKeys) continue
-                    val typed = entriesJson.optJSONObject(key) ?: continue
-                    applyValue(editor, key, typed)
+                when (category.source) {
+                    Source.SQLITE -> {
+                        val arr = categoriesJson.optJSONArray(id) ?: return@forEach
+                        importSqlite(context, category, arr)
+                        imported.add(id)
+                    }
+                    Source.PREFS -> {
+                        val entriesJson = categoriesJson.optJSONObject(id) ?: return@forEach
+                        val prefs = prefsFor(context, category)
+                        val editor = prefs.edit()
+                        val keys = entriesJson.keys()
+                        while (keys.hasNext()) {
+                            val key = keys.next()
+                            // 命名 prefs 限定了 key 范围时，跳过范围外的 key，避免污染目标文件
+                            if (category.explicitKeys != null && key !in category.explicitKeys) continue
+                            val typed = entriesJson.optJSONObject(key) ?: continue
+                            applyValue(editor, key, typed)
+                        }
+                        editor.apply()
+                        imported.add(id)
+                    }
                 }
-                editor.apply()
-                imported.add(id)
             }.onFailure {
                 KailLog.e(context, "DataTransfer", "import category $id failed: ${it.message}")
             }
@@ -354,6 +396,112 @@ object DataTransferManager {
                 editor.putStringSet(key, set)
             }
         }
+    }
+
+    // ───────────────────────── SQLite 导出 / 导入 ─────────────────────────
+
+    /**
+     * 位置模拟历史（[DataBaseHistoryLocation]）导出 / 导入的列集合（不含自增主键 ID）。
+     * ID 在导入时由数据库自增生成，无需也不应跨设备保留。
+     */
+    private val SQLITE_LOCATION_COLUMNS = listOf(
+        DataBaseHistoryLocation.DB_COLUMN_LOCATION,
+        DataBaseHistoryLocation.DB_COLUMN_LONGITUDE_WGS84,
+        DataBaseHistoryLocation.DB_COLUMN_LATITUDE_WGS84,
+        DataBaseHistoryLocation.DB_COLUMN_TIMESTAMP,
+        DataBaseHistoryLocation.DB_COLUMN_LONGITUDE_CUSTOM,
+        DataBaseHistoryLocation.DB_COLUMN_LATITUDE_CUSTOM
+    )
+
+    /** 统计某个 SQLite 类别当前的行数。 */
+    private fun sqliteRowCount(context: Context, category: Category): Int {
+        if (category.id != "location") return 0
+        return runCatching {
+            val helper = DataBaseHistoryLocation(context)
+            try {
+                DatabaseUtils.queryNumEntries(
+                    helper.readableDatabase,
+                    DataBaseHistoryLocation.TABLE_NAME
+                ).toInt()
+            } finally {
+                helper.close()
+            }
+        }.getOrDefault(0)
+    }
+
+    /** 将某个 SQLite 类别的全部行导出为 JSON 行数组。 */
+    private fun exportSqlite(context: Context, category: Category): JSONArray {
+        val arr = JSONArray()
+        if (category.id != "location") return arr
+        val helper = DataBaseHistoryLocation(context)
+        try {
+            val cursor = helper.readableDatabase.query(
+                DataBaseHistoryLocation.TABLE_NAME,
+                null, null, null, null, null,
+                DataBaseHistoryLocation.DB_COLUMN_TIMESTAMP + " ASC"
+            )
+            cursor.use { c ->
+                while (c.moveToNext()) {
+                    arr.put(rowToJson(c, SQLITE_LOCATION_COLUMNS))
+                }
+            }
+        } finally {
+            helper.close()
+        }
+        return arr
+    }
+
+    /** 将备份中的 JSON 行数组写回某个 SQLite 类别。 */
+    private fun importSqlite(context: Context, category: Category, arr: JSONArray) {
+        if (category.id != "location") return
+        val helper = DataBaseHistoryLocation(context)
+        try {
+            val db = helper.writableDatabase
+            for (i in 0 until arr.length()) {
+                val row = arr.optJSONObject(i) ?: continue
+                val lonWgs84 = cellString(row, DataBaseHistoryLocation.DB_COLUMN_LONGITUDE_WGS84)
+                val latWgs84 = cellString(row, DataBaseHistoryLocation.DB_COLUMN_LATITUDE_WGS84)
+                // WGS84 经纬度为 NOT NULL 且是去重键，缺失则跳过该行
+                if (lonWgs84.isEmpty() || latWgs84.isEmpty()) continue
+                DataBaseHistoryLocation.addHistoryLocation(
+                    db,
+                    cellString(row, DataBaseHistoryLocation.DB_COLUMN_LOCATION),
+                    lonWgs84,
+                    latWgs84,
+                    cellString(row, DataBaseHistoryLocation.DB_COLUMN_TIMESTAMP)
+                        .ifEmpty { (System.currentTimeMillis() / 1000).toString() },
+                    cellString(row, DataBaseHistoryLocation.DB_COLUMN_LONGITUDE_CUSTOM),
+                    cellString(row, DataBaseHistoryLocation.DB_COLUMN_LATITUDE_CUSTOM)
+                )
+            }
+        } finally {
+            helper.close()
+        }
+    }
+
+    /** 把游标当前行的指定列编码为 `{ "<col>": { "t", "v" } }` 形式。 */
+    private fun rowToJson(cursor: Cursor, columns: List<String>): JSONObject {
+        val obj = JSONObject()
+        columns.forEach { col ->
+            val idx = cursor.getColumnIndex(col)
+            if (idx < 0) return@forEach
+            val cell = JSONObject()
+            when (cursor.getType(idx)) {
+                Cursor.FIELD_TYPE_INTEGER -> { cell.put("t", "l"); cell.put("v", cursor.getLong(idx)) }
+                Cursor.FIELD_TYPE_FLOAT -> { cell.put("t", "f"); cell.put("v", cursor.getDouble(idx)) }
+                Cursor.FIELD_TYPE_NULL -> { cell.put("t", "s"); cell.put("v", "") }
+                else -> { cell.put("t", "s"); cell.put("v", cursor.getString(idx) ?: "") }
+            }
+            obj.put(col, cell)
+        }
+        return obj
+    }
+
+    /** 从一行 JSON 中按列名取出值并统一转为字符串（供 SQLite 写回使用）。 */
+    private fun cellString(row: JSONObject, column: String): String {
+        val cell = row.optJSONObject(column) ?: return ""
+        if (cell.isNull("v")) return ""
+        return cell.opt("v")?.toString() ?: ""
     }
 
     /**

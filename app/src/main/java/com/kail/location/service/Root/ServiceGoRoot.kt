@@ -834,6 +834,15 @@ class ServiceGoRoot : Service() {
         runCatching { RootDeployer.ensureBaseline(this) }
             .onFailure { KailLog.e(this, TAG, "RootDeployer.ensureBaseline: ${it.message}") }
 
+        // Mirror the native LHooker init diagnostics (ArtMethod layout
+        // auto-detection results, final offsets, fail-safe outcome) into the
+        // app's own log file. The hook engine runs inside system_server, which
+        // cannot write to the app's scoped-storage log dir, so it drops the
+        // summary at /data/kail-loc/lhooker_init.log; we (the app process) read
+        // it back and persist it through KailLog so it is exportable for
+        // offline troubleshooting on devices we don't own.
+        mirrorLHookerInitLog()
+
         // WiFi-only / cell-only modes must NOT turn on GNSS satellite
         // mocking, and WiFi-only must not start location mocking at all.
         // They still need the inject to have run (so the service_mock_wifi /
@@ -894,6 +903,49 @@ class ServiceGoRoot : Service() {
             pushLocationToInjection()
             KailLog.i(this, TAG, "Test-provider mock-location active lat=$mCurLat lng=$mCurLng")
         }.onFailure { KailLog.e(this, TAG, "ensureProviders: ${it.message}") }
+    }
+
+    /**
+     * Read the native LHooker init diagnostics that the hook engine dropped at
+     * /data/kail-loc/lhooker_init.log (it runs in system_server and can't write
+     * to the app's scoped-storage log dir) and mirror them into the app's
+     * exportable KailLog. Each injection appends a fresh "===== LHooker init"
+     * block; we surface the most recent one so the auto-detected ArtMethod
+     * layout is visible when troubleshooting.
+     */
+    private fun mirrorLHookerInitLog() {
+        runCatching {
+            val candidates = listOf(
+                java.io.File("/data/kail-loc/lhooker_init.log"),
+                java.io.File("/data/local/kail-lib/lhooker_init.log"),
+            )
+            val file = candidates.firstOrNull { it.exists() && it.length() > 0 }
+            val text = when {
+                file != null -> file.readText()
+                else -> {
+                    // Files are 0666 but the dir may be traversable only via su
+                    // on some ROMs; fall back to a root read.
+                    val out = ShellUtils.executeCommand(
+                        "cat /data/kail-loc/lhooker_init.log 2>/dev/null || " +
+                            "cat /data/local/kail-lib/lhooker_init.log 2>/dev/null"
+                    )
+                    out
+                }
+            }
+            if (text.isNullOrBlank()) {
+                KailLog.i(this, TAG, "LHooker init log not found yet")
+                return@runCatching
+            }
+            // Keep only the last init block to avoid replaying stale sessions.
+            val lastBlock = text.trim().split("===== LHooker init")
+                .lastOrNull { it.isNotBlank() }
+                ?.let { "===== LHooker init$it" }
+                ?: text.trim()
+            lastBlock.lineSequence()
+                .map { it.trimEnd() }
+                .filter { it.isNotBlank() }
+                .forEach { KailLog.i(this, TAG, "[native] $it") }
+        }.onFailure { KailLog.w(this, TAG, "mirrorLHookerInitLog: ${it.message}") }
     }
 
     private fun stopMockLocationOnInjection() {

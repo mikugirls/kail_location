@@ -97,6 +97,7 @@ Feature requests and feedback are welcome via issues.
 - https://github.com/ella8192/Portal
 - https://github.com/Hilaver/MockGPS
 - https://github.com/Acooldog/fuckschoolrun
+- https://github.com/ALEX5402/NewBlackbox
 
 ---
 

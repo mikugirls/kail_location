@@ -10,6 +10,8 @@ import com.kail.location.models.UpdateInfo
 import com.kail.location.utils.UpdateChecker
 import android.content.Context
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 import android.Manifest
 import android.content.pm.PackageManager
 import android.widget.Toast
@@ -24,6 +26,7 @@ import com.kail.location.auth.UsageManager
 import androidx.preference.PreferenceManager
 import android.database.sqlite.SQLiteDatabase
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewModelScope
 import androidx.core.content.ContextCompat
@@ -31,6 +34,7 @@ import com.kail.location.R
 import com.kail.location.service.Root.ServiceGoRoot
 import com.kail.location.service.Developer.ServiceGoDeveloper
 import com.kail.location.views.locationpicker.LocationPickerActivity
+import com.kail.location.utils.service.ServiceConstants
 
 /**
  * 位置模拟页面的 ViewModel。
@@ -64,6 +68,9 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
      */
     val isSimulating: StateFlow<Boolean> = _isSimulating.asStateFlow()
 
+    private val _isStarting = MutableStateFlow(false)
+    val isStarting: StateFlow<Boolean> = _isStarting.asStateFlow()
+
     private val _isJoystickEnabled = MutableStateFlow(false)
     /**
      * 摇杆是否启用的状态流。
@@ -92,6 +99,23 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
     private val _stepCadenceSpm = MutableStateFlow(120f)
     val stepCadenceSpm: StateFlow<Float> = _stepCadenceSpm.asStateFlow()
 
+    private var startTimeoutJob: kotlinx.coroutines.Job? = null
+
+    private val statusReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != ServiceConstants.ACTION_STATUS_CHANGED) return
+            val isSimulating = intent.getBooleanExtra(ServiceConstants.EXTRA_IS_SIMULATING, false)
+            if (_isStarting.value && !isSimulating) {
+                return
+            }
+            if (isSimulating) {
+                startTimeoutJob?.cancel()
+                _isStarting.value = false
+            }
+            _isSimulating.value = isSimulating
+        }
+    }
+
     init {
         _runMode.value = sharedPreferences.getString("setting_run_mode", "developer") ?: "developer"
         _isJoystickEnabled.value = sharedPreferences.getBoolean("setting_joystick_enabled", true)
@@ -101,6 +125,12 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
             db = dbHelper.writableDatabase
             loadRecords()
         } catch (_: Exception) {}
+        ContextCompat.registerReceiver(
+            application,
+            statusReceiver,
+            IntentFilter(ServiceConstants.ACTION_STATUS_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
     }
 
     fun setStepSimulationEnabled(enabled: Boolean) {
@@ -122,6 +152,7 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
      * 切换模拟状态。
      */
     fun toggleSimulation() {
+        if (_isStarting.value) return
         val app = getApplication<Application>()
         val next = !_isSimulating.value
         if (next) {
@@ -198,6 +229,8 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
                     val svcName = if (currentRunMode == "root") "ServiceGoRoot" else "ServiceGoDeveloper"
                     KailLog.persist(app, SimulationDiagnostics.TAG,
                         "位置模拟：启动 $svcName（模式=$currentRunMode）")
+                    _isStarting.value = true
+                    scheduleStartTimeout("位置模拟")
                     ContextCompat.startForegroundService(app, intent)
                 } else {
                     KailLog.persist(app, SimulationDiagnostics.TAG,
@@ -205,13 +238,27 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
                     GoUtils.DisplayToast(app, app.getString(R.string.vm_need_location_permission))
                     return@launch
                 }
-                _isSimulating.value = true
             }
         } else {
             val currentRunMode = sharedPreferences.getString("setting_run_mode", "developer") ?: "developer"
             val serviceClass = if (currentRunMode == "root") ServiceGoRoot::class.java else ServiceGoDeveloper::class.java
             app.stopService(Intent(app, serviceClass))
+            startTimeoutJob?.cancel()
+            _isStarting.value = false
             _isSimulating.value = false
+        }
+    }
+
+    private fun scheduleStartTimeout(label: String) {
+        startTimeoutJob?.cancel()
+        val app = getApplication<Application>()
+        startTimeoutJob = viewModelScope.launch {
+            delay(30_000)
+            if (_isStarting.value) {
+                _isStarting.value = false
+                KailLog.persist(app, SimulationDiagnostics.TAG,
+                    "$label 启动等待服务状态超时：未收到 STATUS_CHANGED=true", 'w')
+            }
         }
     }
 
@@ -339,5 +386,13 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
                 _selectedRecordId.value = null
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        startTimeoutJob?.cancel()
+        try {
+            getApplication<Application>().unregisterReceiver(statusReceiver)
+        } catch (_: Exception) {}
     }
 }

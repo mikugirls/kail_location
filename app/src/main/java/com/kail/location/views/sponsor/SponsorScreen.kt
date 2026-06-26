@@ -227,19 +227,19 @@ fun SponsorScreen(
             Spacer(modifier = Modifier.height(16.dp))
             Text(stringResource(R.string.sponsor_support_title), fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
-            Text(stringResource(R.string.sponsor_tron_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.sponsor_aptos_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(modifier = Modifier.height(8.dp))
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Text("TVvudxmNTwzRFe3z7ts9srZE1srkqXgmxm", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(12.dp))
+                Text("0x549928ea1ab2407bcba7bdde7b6a62a6e5a68e08f9bbe798ed151cef086da883", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(12.dp))
             }
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedButton(
                 onClick = {
                     val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
-                    clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("TRON Address", "TVvudxmNTwzRFe3z7ts9srZE1srkqXgmxm"))
+                    clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Aptos Address", "0x549928ea1ab2407bcba7bdde7b6a62a6e5a68e08f9bbe798ed151cef086da883"))
                 },
                 modifier = Modifier.fillMaxWidth()
-            ) { Text(stringResource(R.string.sponsor_copy_tron_address)) }
+            ) { Text(stringResource(R.string.sponsor_copy_aptos_address)) }
         }
     }
 }

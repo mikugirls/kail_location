@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -57,13 +58,25 @@ fun AnnouncementDialog(
     var currentIndex by remember { mutableIntStateOf(0) }
     val notice = notices[currentIndex]
     val scrollState = rememberScrollState()
+    var dismissCountdown by remember { mutableIntStateOf(3) }
+    var canDismiss by remember { mutableStateOf(false) }
 
     LaunchedEffect(currentIndex) {
         scrollState.scrollTo(0)
     }
 
+    LaunchedEffect(Unit) {
+        dismissCountdown = 3
+        canDismiss = false
+        while (dismissCountdown > 0) {
+            kotlinx.coroutines.delay(1000L)
+            dismissCountdown--
+        }
+        canDismiss = true
+    }
+
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (canDismiss) onDismiss() },
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(
@@ -184,13 +197,17 @@ fun AnnouncementDialog(
                     if (currentIndex == notices.size - 1) {
                         Button(
                             onClick = onDismiss,
+                            enabled = canDismiss,
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary
                             )
                         ) {
-                            Text(stringResource(R.string.announcement_got_it))
+                            Text(
+                                if (canDismiss) stringResource(R.string.announcement_got_it)
+                                else "${stringResource(R.string.announcement_got_it)} (${dismissCountdown}s)"
+                            )
                         }
                     }
                 }

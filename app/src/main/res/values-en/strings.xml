@@ -453,8 +453,8 @@
     <string name="sponsor_credit_card">Credit/Debit Card</string>
     <string name="sponsor_wechat_pay">WeChat Pay</string>
     <string name="sponsor_support_title">Sponsorship</string>
-    <string name="sponsor_tron_hint">You can also sponsor via TRON USDT:</string>
-    <string name="sponsor_copy_tron_address">Copy TRON Address</string>
+    <string name="sponsor_aptos_hint">You can also sponsor via Aptos chain:</string>
+    <string name="sponsor_copy_aptos_address">Copy Aptos Address</string>
 
     <!-- Login Screen -->
     <string name="login_hint_text">Only QQ email and Gmail supported. Enter verification code to login or auto-register.</string>

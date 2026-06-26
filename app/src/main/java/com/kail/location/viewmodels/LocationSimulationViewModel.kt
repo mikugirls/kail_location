@@ -390,14 +390,40 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
 
     fun checkAnnouncement() {
         viewModelScope.launch(Dispatchers.IO) {
+            val dismissedKeys = readDismissedNoticeKeys()
             RuoYiClient.getNoticeList().onSuccess { list ->
-                _noticeList.value = list
+                _noticeList.value = list.filter { noticeKey(it) !in dismissedKeys }
             }
         }
     }
 
     fun dismissNotice() {
+        val dismissed = _noticeList.value.map { noticeKey(it) }.toSet()
+        if (dismissed.isNotEmpty()) {
+            saveDismissedNoticeKeys(dismissed)
+        }
         _noticeList.value = emptyList()
+    }
+
+    private fun noticeKey(notice: RuoYiClient.NoticeInfo): String {
+        val contentHash = notice.content.hashCode().toLong() and 0xFFFFFFFFL
+        return "${notice.id}:${notice.content.length}:$contentHash"
+    }
+
+    private fun readDismissedNoticeKeys(): Set<String> {
+        val app = getApplication<Application>()
+        val raw = PreferenceManager.getDefaultSharedPreferences(app)
+            .getString("dismissed_notice_keys", "") ?: ""
+        return raw.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
+    }
+
+    private fun saveDismissedNoticeKeys(keys: Set<String>) {
+        val app = getApplication<Application>()
+        val merged = readDismissedNoticeKeys() + keys
+        PreferenceManager.getDefaultSharedPreferences(app)
+            .edit()
+            .putString("dismissed_notice_keys", merged.joinToString(","))
+            .apply()
     }
 
     fun loadRecords() {

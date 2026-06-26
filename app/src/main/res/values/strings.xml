@@ -618,8 +618,8 @@
     <string name="sponsor_credit_card">信用卡/银行卡</string>
     <string name="sponsor_wechat_pay">微信支付</string>
     <string name="sponsor_support_title">赞助支持</string>
-    <string name="sponsor_tron_hint">您也可以直接通过 TRON USDT 赞助：</string>
-    <string name="sponsor_copy_tron_address">复制 TRON 地址</string>
+    <string name="sponsor_aptos_hint">您也可以直接通过 Aptos 链赞助：</string>
+    <string name="sponsor_copy_aptos_address">复制 Aptos 地址</string>
 
     <!-- Login Screen -->
     <string name="login_hint_text">仅支持 QQ 邮箱与谷歌邮箱，输入验证码即可登录或自动注册</string>

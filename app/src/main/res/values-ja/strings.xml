@@ -415,8 +415,8 @@
     <string name="sponsor_credit_card">クレジット/デビットカード</string>
     <string name="sponsor_wechat_pay">WeChat Pay</string>
     <string name="sponsor_support_title">スポンサー</string>
-    <string name="sponsor_tron_hint">TRON USDT でのスポンサーも受け付けています：</string>
-    <string name="sponsor_copy_tron_address">TRON アドレスをコピー</string>
+    <string name="sponsor_aptos_hint">Aptos チェーンでのスポンサーも受け付けています：</string>
+    <string name="sponsor_copy_aptos_address">Aptos アドレスをコピー</string>
 
     <!-- Login Screen -->
     <string name="login_hint_text">QQ メールと Gmail のみ対応。認証コードを入力してログインまたは自動登録。</string>

@@ -27,6 +27,7 @@ import com.kail.location.R
 import com.kail.location.viewmodels.LocationSimulationViewModel
 import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import com.kail.location.views.common.DrawerHeader
 import androidx.compose.ui.platform.LocalContext
 import android.content.Intent
@@ -37,6 +38,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Star
 
 import com.kail.location.views.common.AppDrawer
 
@@ -73,6 +75,7 @@ fun LocationSimulationScreen(
     onRecordSelect: (HistoryRecord) -> Unit,
     onRecordDelete: (Int) -> Unit,
     onRecordRename: (Int, String) -> Unit,
+    onToggleFavorite: (Int) -> Unit,
     runMode: String,
     onRunModeChange: (String) -> Unit,
     onDeveloperModeSelected: () -> Unit = {},
@@ -363,6 +366,14 @@ fun LocationSimulationScreen(
                                         Text(text = record.displayTime, fontSize = 12.sp, color = Color.Gray)
                                     }
                                     Row {
+                                        IconButton(onClick = { onToggleFavorite(record.id) }) {
+                                            Icon(
+                                                Icons.Default.Star,
+                                                contentDescription = "Favorite",
+                                                tint = if (record.isFavorite) Color(0xFFFFB300) else Color.Gray,
+                                                modifier = Modifier.graphicsLayer(alpha = if (record.isFavorite) 1f else 0.4f)
+                                            )
+                                        }
                                         IconButton(onClick = { renameTarget = record; renameText = record.name }) {
                                             Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary)
                                         }

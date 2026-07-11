@@ -432,19 +432,31 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
             val database = db
             if (database != null) {
                 try {
-                    val cursor = database.query(
-                        DataBaseHistoryLocation.TABLE_NAME, null,
-                        DataBaseHistoryLocation.DB_COLUMN_ID + " > ?", arrayOf("0"),
-                        null, null, DataBaseHistoryLocation.DB_COLUMN_TIMESTAMP + " DESC", null
-                    )
+                    val cursor = database.rawQuery("PRAGMA table_info(${DataBaseHistoryLocation.TABLE_NAME})", null)
+                    var hasFavoriteColumn = false
                     while (cursor.moveToNext()) {
-                        val id = cursor.getInt(0)
-                        val location = cursor.getString(1)
-                        val longitude = cursor.getString(2)
-                        val latitude = cursor.getString(3)
-                        val timeStamp = cursor.getInt(4).toLong()
-                        val bd09Longitude = cursor.getString(5)
-                        val bd09Latitude = cursor.getString(6)
+                        if (cursor.getString(1) == DataBaseHistoryLocation.DB_COLUMN_FAVORITE) {
+                            hasFavoriteColumn = true
+                            break
+                        }
+                    }
+                    cursor.close()
+
+                    val query = if (hasFavoriteColumn) {
+                        "SELECT * FROM ${DataBaseHistoryLocation.TABLE_NAME} WHERE ${DataBaseHistoryLocation.DB_COLUMN_ID} > 0 ORDER BY ${DataBaseHistoryLocation.DB_COLUMN_FAVORITE} DESC, ${DataBaseHistoryLocation.DB_COLUMN_TIMESTAMP} DESC"
+                    } else {
+                        "SELECT * FROM ${DataBaseHistoryLocation.TABLE_NAME} WHERE ${DataBaseHistoryLocation.DB_COLUMN_ID} > 0 ORDER BY ${DataBaseHistoryLocation.DB_COLUMN_TIMESTAMP} DESC"
+                    }
+                    val cursor2 = database.rawQuery(query, null)
+                    while (cursor2.moveToNext()) {
+                        val id = cursor2.getInt(0)
+                        val location = cursor2.getString(1)
+                        val longitude = cursor2.getString(2)
+                        val latitude = cursor2.getString(3)
+                        val timeStamp = cursor2.getInt(4).toLong()
+                        val bd09Longitude = cursor2.getString(5)
+                        val bd09Latitude = cursor2.getString(6)
+                        val isFav = if (hasFavoriteColumn) cursor2.getInt(7) == 1 else false
                         list.add(
                             HistoryRecord(
                                 id = id,
@@ -456,11 +468,12 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
                                 latitudeBd09 = bd09Latitude,
                                 displayTime = com.kail.location.utils.GoUtils.timeStamp2Date(timeStamp.toString()),
                                 displayWgs84 = "",
-                                displayBd09 = ""
+                                displayBd09 = "",
+                                isFavorite = isFav
                             )
                         )
                     }
-                    cursor.close()
+                    cursor2.close()
                 } catch (_: Exception) {}
             }
             _historyRecords.value = list
@@ -475,6 +488,16 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
             latitude = record.latitudeBd09.toDoubleOrNull() ?: 0.0,
             longitude = record.longitudeBd09.toDoubleOrNull() ?: 0.0
         )
+    }
+
+    fun toggleFavorite(id: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val record = _historyRecords.value.find { it.id == id } ?: return@launch
+                db?.let { DataBaseHistoryLocation.updateFavorite(it, id, !record.isFavorite) }
+            } catch (_: Exception) {}
+            loadRecords()
+        }
     }
 
     fun renameRecord(id: Int, newName: String) {

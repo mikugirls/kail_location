@@ -147,7 +147,8 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
                         id = entity.id.toString(),
                         startName = entity.startName,
                         endName = entity.endName,
-                        distance = "${entity.startLat},${entity.startLng}|${entity.endLat},${entity.endLng}" // Store coords in distance for retrieval
+                        distance = "${entity.startLat},${entity.startLng}|${entity.endLat},${entity.endLng}",
+                        isFavorite = entity.isFavorite
                     )
                 }
             }
@@ -378,6 +379,13 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
         }
     }
     
+    fun toggleFavorite(id: Long) {
+        viewModelScope.launch {
+            val current = _historyList.value.find { it.id == id.toString() }?.isFavorite ?: return@launch
+            historyRepository.updateFavorite(id, !current)
+        }
+    }
+
     fun clearHistory() {
         viewModelScope.launch {
             historyRepository.clearHistory()

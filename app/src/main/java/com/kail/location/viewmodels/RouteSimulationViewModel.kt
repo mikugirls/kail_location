@@ -658,10 +658,12 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
                 val coordE = String.format("%.6f,%.6f", last.optDouble("lat"), last.optDouble("lng"))
                 val s = obj.optString("startName", coordS).let { if (it.isBlank() || it == "null") coordS else it }
                 val e = obj.optString("endName", coordE).let { if (it.isBlank() || it == "null") coordE else it }
-                list.add(time to RouteInfo(time.toString(), s, e, ""))
+                val isFav = obj.optBoolean("isFavorite", false)
+                list.add(time to RouteInfo(time.toString(), s, e, "", isFav))
             }
             list.sortByDescending { it.first }
-            list.map { it.second }
+            val routes = list.map { it.second }
+            routes.sortedByDescending { it.isFavorite }
         } catch (e: Exception) {
             KailLog.w(getApplication(), TAG, "parseRoutes: parse saved routes failed: ${e.message}")
             emptyList()
@@ -676,6 +678,7 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
                 val arr = JSONArray(existing)
                 val obj = JSONObject()
                 obj.put("time", System.currentTimeMillis())
+                obj.put("isFavorite", false)
                 val pts = JSONArray()
                 points.forEach { pt ->
                     val p = JSONObject()
@@ -750,6 +753,24 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
                     // 也更新 start/end 文本以便旧界面显示更友好
                     obj.put("startName", newName)
                     obj.put("endName", newName)
+                    break
+                }
+            }
+            prefs.edit().putString("saved_routes", arr.toString()).apply()
+            _historyRoutes.value = parseRoutes(arr.toString())
+        }
+    }
+
+    fun toggleFavorite(id: String) {
+        viewModelScope.launch {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
+            val res = prefs.getString("saved_routes", "[]") ?: "[]"
+            val arr = JSONArray(res)
+            for (i in 0 until arr.length()) {
+                val obj = arr.optJSONObject(i) ?: continue
+                if (obj.optLong("time", 0L).toString() == id) {
+                    val current = obj.optBoolean("isFavorite", false)
+                    obj.put("isFavorite", !current)
                     break
                 }
             }

@@ -84,6 +84,7 @@ class LocationSimulationActivity : BaseActivity() {
                     onRecordSelect = viewModel::selectRecord,
                     onRecordDelete = viewModel::deleteRecord,
                     onRecordRename = viewModel::renameRecord,
+                    onToggleFavorite = viewModel::toggleFavorite,
                     runMode = runMode,
                     onRunModeChange = { viewModel.setRunMode(it) },
                     onDeveloperModeSelected = {

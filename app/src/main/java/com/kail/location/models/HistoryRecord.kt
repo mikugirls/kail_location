@@ -24,5 +24,6 @@ data class HistoryRecord(
     val latitudeBd09: String,
     val displayTime: String,
     val displayWgs84: String,
-    val displayBd09: String
+    val displayBd09: String,
+    val isFavorite: Boolean = false
 )

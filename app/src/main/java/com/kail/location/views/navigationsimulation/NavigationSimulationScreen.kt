@@ -9,9 +9,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,6 +36,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.IntOffset
 import com.kail.location.views.locationpicker.LocationPickerActivity
 import androidx.compose.foundation.text.KeyboardOptions
@@ -360,11 +363,24 @@ fun NavigationSimulationScreen(
                                     .clickable { viewModel.selectHistoryRoute(route) },
                                 shape = RoundedCornerShape(8.dp)
                             ) {
-                                Text(
-                                    text = "${route.startName} -> ${route.endName}",
-                                    modifier = Modifier.padding(16.dp),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
+                                Row(
+                                    modifier = Modifier.padding(start = 16.dp, end = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "${route.startName} -> ${route.endName}",
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    IconButton(onClick = { viewModel.toggleFavorite(route.id.toLongOrNull() ?: return@IconButton) }) {
+                                        Icon(
+                                            Icons.Default.Star,
+                                            contentDescription = "Favorite",
+                                            tint = if (route.isFavorite) Color(0xFFFFB300) else Color.Gray,
+                                            modifier = Modifier.graphicsLayer(alpha = if (route.isFavorite) 1f else 0.4f)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

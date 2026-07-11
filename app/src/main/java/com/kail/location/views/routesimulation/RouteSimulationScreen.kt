@@ -227,17 +227,25 @@ fun RouteSimulationScreen(
                                         Text(text = route.startName, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
                                         Text(text = route.endName, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                                     }
-                                    Row {
-                                        IconButton(onClick = { onEditRoute(route.id) }) {
-                                            Icon(Icons.Default.Place, contentDescription = "Edit Route", tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                        IconButton(onClick = { renameTarget = route; renameText = route.startName }) {
-                                            Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                        IconButton(onClick = { viewModel.deleteRoute(route.id) }) {
-                                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
-                                        }
-                                    }
+                                                    Row {
+                                                        IconButton(onClick = { viewModel.toggleFavorite(route.id) }) {
+                                                            Icon(
+                                                                Icons.Default.Star,
+                                                                contentDescription = "Favorite",
+                                                                tint = if (route.isFavorite) Color(0xFFFFB300) else Color.Gray,
+                                                                modifier = Modifier.graphicsLayer(alpha = if (route.isFavorite) 1f else 0.4f)
+                                                            )
+                                                        }
+                                                        IconButton(onClick = { onEditRoute(route.id) }) {
+                                                            Icon(Icons.Default.Place, contentDescription = "Edit Route", tint = MaterialTheme.colorScheme.primary)
+                                                        }
+                                                        IconButton(onClick = { renameTarget = route; renameText = route.startName }) {
+                                                            Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary)
+                                                        }
+                                                        IconButton(onClick = { viewModel.deleteRoute(route.id) }) {
+                                                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
+                                                        }
+                                                    }
                                 }
                             }
                         }

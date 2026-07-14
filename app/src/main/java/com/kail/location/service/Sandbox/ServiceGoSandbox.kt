@@ -350,12 +350,18 @@ class ServiceGoSandbox : Service() {
         return Pair(mCurLat + (Math.random() * 2 - 1) * sigma, mCurLng + (Math.random() * 2 - 1) * sigma)
     }
 
+    private var loopCount = 0
+
     private fun initGoLocation() {
         mLocHandlerThread = HandlerThread(SERVICE_GO_HANDLER_NAME, Process.THREAD_PRIORITY_FOREGROUND)
         mLocHandlerThread.start()
         mLocHandler = object : Handler(mLocHandlerThread.looper) {
             override fun handleMessage(msg: Message) {
                 try {
+                    if (loopCount % 20 == 0) {
+                        KailLog.i(this@ServiceGoSandbox, "[sandbox]ServiceGoSandbox", "loop #$loopCount: lat=$mCurLat lng=$mCurLng alt=$mCurAlt bea=$mCurBea speed=$mSpeed isStop=$isStop routeActive=${mRouteEngine.isActive}")
+                    }
+                    loopCount++
                     Thread.sleep(50)
                     if (!isStop) {
                         if (mRouteEngine.isActive) {

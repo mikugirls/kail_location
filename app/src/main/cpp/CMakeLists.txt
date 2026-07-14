@@ -82,3 +82,43 @@ foreach(engine lhooker StepSensor antidetect)
         POSITION_INDEPENDENT_CODE ON
     )
 endforeach()
+
+# ============================================================
+# BlackBox native library (libblackbox.so)
+# Provides file system hooks, binder hooks, dex hooks, etc.
+# ============================================================
+set(BLACKBOX_SRC
+    blackbox/BoxCore.cpp
+    blackbox/hidden_api.cpp
+    blackbox/IO.cpp
+    blackbox/Utils/elf_util.cpp
+    blackbox/Utils/VirtualSpoof.cpp
+    blackbox/Utils/HexDump.cpp
+    blackbox/Utils/AntiDetection.cpp
+    blackbox/Hook/DexFileHook.cpp
+    blackbox/Hook/FileSystemHook.cpp
+    blackbox/Hook/VMClassLoaderHook.cpp
+    blackbox/Hook/UnixFileSystemHook.cpp
+    blackbox/Hook/BinderHook.cpp
+    blackbox/Hook/BaseHook.cpp
+    blackbox/Hook/RuntimeHook.cpp
+    blackbox/JniHook/JniHook.cpp
+    blackbox/xdl/xdl.c
+    blackbox/xdl/xdl_iterate.c
+    blackbox/xdl/xdl_linker.c
+    blackbox/xdl/xdl_lzma.c
+    blackbox/xdl/xdl_util.c
+)
+
+add_library(blackbox SHARED ${BLACKBOX_SRC})
+target_include_directories(blackbox PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/blackbox
+    ${CMAKE_CURRENT_SOURCE_DIR}/blackbox/xdl
+    ${CMAKE_CURRENT_SOURCE_DIR}/blackbox/Dobby
+)
+target_link_libraries(blackbox PRIVATE ${log-lib} android z dobby::dobby)
+target_compile_options(blackbox PRIVATE -Wno-error=format-security -fvisibility=hidden -ffunction-sections -fdata-sections -w)
+set_target_properties(blackbox PROPERTIES
+    OUTPUT_NAME "blackbox"
+    POSITION_INDEPENDENT_CODE ON
+)

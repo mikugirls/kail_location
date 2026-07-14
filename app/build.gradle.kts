@@ -58,6 +58,7 @@ android {
         aidl = true
     }
 
+
     packaging {
         jniLibs {
             useLegacyPackaging = true
@@ -438,6 +439,9 @@ dependencies {
     implementation("androidx.room:room-ktx:$room_version")
     ksp("androidx.room:room-compiler:$room_version")
 
-    // NewBlackbox sandbox core module
-    implementation(project(":NewBlackbox:Bcore"))
+    // NewBlackbox annotation processor (kept as submodule)
+    implementation(project(":NewBlackbox:black-reflection"))
+    annotationProcessor(project(":NewBlackbox:compiler"))
+    implementation("com.moandjiezana.toml:toml4j:0.7.2")
+    implementation("com.github.tiann:FreeReflection:3.2.2")
 }

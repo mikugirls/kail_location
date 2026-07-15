@@ -62,11 +62,9 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
     }
 
     public int getPattern(int userId, String pkg) {
-        synchronized (mLocationConfigs) {
-            BLocationConfig config = getOrCreateConfig(userId, pkg);
-            Slog.v(TAG, "getPattern userId=" + userId + " pkg=" + pkg + " -> " + config.pattern);
-            return config.pattern;
-        }
+        BLocationConfig config = resolveConfig(userId, pkg);
+        Slog.v(TAG, "getPattern userId=" + userId + " pkg=" + pkg + " -> " + config.pattern);
+        return config.pattern;
     }
 
     @Override

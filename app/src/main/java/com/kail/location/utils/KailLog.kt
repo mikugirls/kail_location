@@ -115,15 +115,10 @@ object KailLog {
         }
     }
 
-    @JvmStatic @JvmOverloads
     fun v(context: Context?, tag: String, message: String, isHighFrequency: Boolean = true) = log(context, tag, message, isHighFrequency, 'v')
-    @JvmStatic @JvmOverloads
     fun d(context: Context?, tag: String, message: String, isHighFrequency: Boolean = false) = log(context, tag, message, isHighFrequency, 'd')
-    @JvmStatic @JvmOverloads
     fun i(context: Context?, tag: String, message: String, isHighFrequency: Boolean = false) = log(context, tag, message, isHighFrequency, 'i')
-    @JvmStatic @JvmOverloads
     fun w(context: Context?, tag: String, message: String, isHighFrequency: Boolean = false) = log(context, tag, message, isHighFrequency, 'w')
-    @JvmStatic @JvmOverloads
     fun e(context: Context?, tag: String, message: String, isHighFrequency: Boolean = false) = log(context, tag, message, isHighFrequency, 'e')
 
     /** 关键诊断日志：始终输出到 Logcat，文件落盘仍遵循日志开关。 */

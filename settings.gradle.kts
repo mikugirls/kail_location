@@ -33,7 +33,9 @@ dependencyResolutionManagement {
 
 rootProject.name = "location"
 include(":app")
-// NewBlackbox annotation processors (needed at compile time for BR* class generation)
+include(":NewBlackbox:Bcore")
 include(":NewBlackbox:black-reflection")
 include(":NewBlackbox:compiler")
+// Note: ":NewBlackbox:app" (BlackBox's standalone demo launcher) is intentionally
+// not included — the main app only depends on :NewBlackbox:Bcore.
  

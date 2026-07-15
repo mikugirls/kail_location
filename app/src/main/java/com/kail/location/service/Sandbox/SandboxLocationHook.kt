@@ -26,7 +26,6 @@ object SandboxLocationHook {
     private var currentBea = 0f
     @Volatile
     private var currentSpeed = 0.0
-    private var updateCount = 0
 
     /**
      * 启用全局沙盒位置模拟。
@@ -34,12 +33,9 @@ object SandboxLocationHook {
      */
     fun enableGlobalSimulation() {
         try {
-            KailLog.i(null, "[sandbox]SandboxLocationHook", "enableGlobalSimulation: calling BLocationManager.get().setPattern(0, \"\", GLOBAL_MODE)...")
             BLocationManager.get().setPattern(0, "", BLocationManager.GLOBAL_MODE)
             isSimulating = true
-            // Verify pattern was set
-            val pattern = BLocationManager.get().getPattern(0, "")
-            KailLog.i(null, "[sandbox]SandboxLocationHook", "enableGlobalSimulation: done, isSimulating=true, verify pattern=$pattern (expected ${BLocationManager.GLOBAL_MODE})")
+            KailLog.i(null, TAG, "enableGlobalSimulation: global mode on")
         } catch (e: Exception) {
             KailLog.e(null, TAG, "Failed to enable global simulation", e)
         }
@@ -50,10 +46,9 @@ object SandboxLocationHook {
      */
     fun disableSimulation() {
         try {
-            KailLog.i(null, "[sandbox]SandboxLocationHook", "disableSimulation: calling BLocationManager.get().setPattern(0, \"\", CLOSE_MODE)...")
             BLocationManager.get().setPattern(0, "", BLocationManager.CLOSE_MODE)
             isSimulating = false
-            KailLog.i(null, "[sandbox]SandboxLocationHook", "disableSimulation: done")
+            KailLog.i(null, TAG, "disableSimulation: simulation off")
         } catch (e: Exception) {
             KailLog.e(null, TAG, "Failed to disable simulation", e)
         }
@@ -72,21 +67,11 @@ object SandboxLocationHook {
         if (isSimulating) {
             try {
                 val bLocation = BLocation(lat, lng)
-                updateCount++
                 BLocationManager.get().setGlobalLocation(bLocation)
-                if (updateCount % 20 == 0) {
-                    val stored = BLocationManager.get().getGlobalLocation()
-                    if (stored != null) {
-                        KailLog.i(null, "[sandbox]SandboxLocationHook", "updateLocation #$updateCount: set($lat, $lng) verify=(${stored.latitude}, ${stored.longitude})")
-                    } else {
-                        KailLog.e(null, "[sandbox]SandboxLocationHook", "updateLocation #$updateCount: FAILED - getGlobalLocation() returned null!")
-                    }
-                }
+                KailLog.v(null, TAG, "updateLocation lat=$lat lng=$lng alt=$alt bea=$bearing spd=$speed")
             } catch (e: Exception) {
                 KailLog.e(null, TAG, "Failed to update location", e)
             }
-        } else {
-            KailLog.w(null, "[sandbox]SandboxLocationHook", "updateLocation: SKIPPED - isSimulating=false")
         }
     }
 

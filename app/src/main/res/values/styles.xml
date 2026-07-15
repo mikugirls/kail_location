@@ -39,12 +39,4 @@
         <item name="colorButtonNormal">@color/colorAccent</item>
     </style>
 
-    <style name="BTheme" parent="@android:style/Theme.Light.NoTitleBar">
-        <item name="android:windowBackground">@android:color/transparent</item>
-        <item name="android:windowDisablePreview">true</item>
-    </style>
-
-    <style name="LauncherTheme" parent="Theme.AppCompat.Light.NoActionBar">
-    </style>
-
 </resources>

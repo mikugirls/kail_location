@@ -175,7 +175,7 @@ fun RouteSimulationScreen(
                     // Target Route Card
                     Box(
                         modifier = Modifier
-                            .padding(horizontal = 16.dp, vertical = 16.dp)
+                            .padding(horizontal = 16.dp)
                     ) {
                         RouteCard(
                             route = currentRoute,
@@ -188,7 +188,8 @@ fun RouteSimulationScreen(
                             isStarting = isStarting,
                             onStopSimulation = onStopSimulation,
                             isPaused = isPaused,
-                            onPauseResume = { if (isPaused) viewModel.resumeSimulation() else viewModel.pauseSimulation() }
+                            onPauseResume = { if (isPaused) viewModel.resumeSimulation() else viewModel.pauseSimulation() },
+                            modifier = Modifier.padding(top = 16.dp)
                         )
                         
                         // FAB overlapping the card
@@ -199,7 +200,6 @@ fun RouteSimulationScreen(
                             shape = CircleShape,
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .offset(y = (-24).dp)
                                 .size(48.dp)
                         ) {
                             Icon(Icons.Default.Add, contentDescription = "Add", tint = Color.White)
@@ -338,21 +338,22 @@ fun RouteCard(
     isStarting: Boolean = false,
     onStopSimulation: (() -> Unit)? = null,
     isPaused: Boolean = false,
-    onPauseResume: (() -> Unit)? = null
+    onPauseResume: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
 ) {
     Card(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = RoundedCornerShape(8.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(12.dp)) {
             if (isTarget) {
                 Text(
                     text = stringResource(R.string.route_sim_target),
                     color = MaterialTheme.colorScheme.primary,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    modifier = Modifier.padding(bottom = 8.dp)
                 )
             }
 
@@ -360,51 +361,51 @@ fun RouteCard(
                 // Route Visuals (Icons and Line)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(end = 12.dp, top = 4.dp)
+                    modifier = Modifier.padding(end = 8.dp)
                 ) {
                     // Start Icon
                     Icon(
-                        painter = painterResource(id = R.drawable.ic_home_position), // Using existing icon or similar
+                        painter = painterResource(id = R.drawable.ic_home_position),
                         contentDescription = "Start",
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                     
                     // Dotted Line (Simulated with Box)
                     Box(
                         modifier = Modifier
                             .width(1.dp)
-                            .height(24.dp)
+                            .height(16.dp)
                             .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
                     )
                     
                     // End Icon
                     Icon(
-                        painter = painterResource(id = R.drawable.ic_position), // Using existing icon or similar
+                        painter = painterResource(id = R.drawable.ic_position),
                         contentDescription = "End",
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
 
                 // Route Details
-                Column(modifier = Modifier.weight(1f).padding(top = 4.dp)) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = route.startName + route.distance,
-                        fontSize = 16.sp,
+                        fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = route.endName,
-                        fontSize = 16.sp,
+                        fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
 
             if (isTarget && settings != null) {
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,

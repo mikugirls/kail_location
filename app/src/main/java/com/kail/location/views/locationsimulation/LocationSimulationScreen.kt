@@ -268,75 +268,31 @@ fun LocationSimulationScreen(
                     }
                 }
 
-                // History List Header
-                PaddingValues(horizontal = 16.dp, vertical = 8.dp).let {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(it)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.loc_sim_history_title),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray
-                        )
-                        Spacer(modifier = Modifier.weight(1f))
-                        Icon(
-                            painter = painterResource(R.drawable.ic_search),
-                            contentDescription = "Search",
-                            tint = Color.Gray
-                        )
-                    }
+                val favRecords = historyRecords.filter { it.isFavorite }
+                    .sortedWith(compareBy<com.kail.location.models.HistoryRecord> { it.favoriteOrder }.thenByDescending { it.favoriteTime })
+                var selectedTab by remember { mutableStateOf(0) }
+
+                TabRow(selectedTabIndex = selectedTab, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                    Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text(stringResource(R.string.joystick_history_favorites), fontSize = 14.sp) })
+                    Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text(stringResource(R.string.joystick_history_normal), fontSize = 14.sp) })
                 }
 
-                if (historyRecords.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_history),
-                                contentDescription = null,
-                                modifier = Modifier.size(64.dp),
-                                tint = Color.LightGray
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = stringResource(R.string.loc_sim_add_tips),
-                                color = Color.Gray,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                } else {
-                    val favRecords = historyRecords.filter { it.isFavorite }
-                        .sortedWith(compareBy<com.kail.location.models.HistoryRecord> { it.favoriteOrder }.thenByDescending { it.favoriteTime })
-                    var selectedTab by remember { mutableStateOf(0) }
-
-                    TabRow(selectedTabIndex = selectedTab, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                        Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text(stringResource(R.string.joystick_history_favorites), fontSize = 14.sp) })
-                        Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text(stringResource(R.string.joystick_history_normal), fontSize = 14.sp) })
-                    }
-
-                    if (selectedTab == 0) {
-                        if (favRecords.isEmpty()) {
-                            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                Text(stringResource(R.string.history_idle), color = Color.Gray)
-                            }
-                        } else {
-                            LazyColumn(modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
-                                items(favRecords, key = { "fav_${it.id}" }) { record ->
-                                    historyRecordCard(record = record, isFav = true, showMoveButtons = true, onToggleFavorite = onToggleFavorite, onRename = { renameTarget = it; renameText = it.name }, onRecordSelect = onRecordSelect, onRecordDelete = onRecordDelete, onMoveUp = { onMoveFavUp(record.id) }, onMoveDown = { onMoveFavDown(record.id) })
-                                }
-                            }
+                if (selectedTab == 0) {
+                    if (favRecords.isEmpty()) {
+                        Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            Text(stringResource(R.string.history_idle), color = Color.Gray)
                         }
                     } else {
                         LazyColumn(modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
-                            items(historyRecords.sortedByDescending { it.timestamp }, key = { "all_${it.id}" }) { record ->
-                                historyRecordCard(record = record, isFav = record.isFavorite, showMoveButtons = false, onToggleFavorite = onToggleFavorite, onRename = { renameTarget = it; renameText = it.name }, onRecordSelect = onRecordSelect, onRecordDelete = onRecordDelete)
+                            items(favRecords, key = { "fav_${it.id}" }) { record ->
+                                historyRecordCard(record = record, isFav = true, showMoveButtons = true, onToggleFavorite = onToggleFavorite, onRename = { renameTarget = it; renameText = it.name }, onRecordSelect = onRecordSelect, onRecordDelete = onRecordDelete, onMoveUp = { onMoveFavUp(record.id) }, onMoveDown = { onMoveFavDown(record.id) })
                             }
+                        }
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
+                        items(historyRecords.sortedByDescending { it.timestamp }, key = { "all_${it.id}" }) { record ->
+                            historyRecordCard(record = record, isFav = record.isFavorite, showMoveButtons = false, onToggleFavorite = onToggleFavorite, onRename = { renameTarget = it; renameText = it.name }, onRecordSelect = onRecordSelect, onRecordDelete = onRecordDelete)
                         }
                     }
                 }

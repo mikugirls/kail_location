@@ -3,9 +3,15 @@ package com.kail.location.views.navigationsimulation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
+import kotlin.math.abs
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -377,7 +383,18 @@ fun NavigationSimulationScreen(
                     }
 
                     if (selectedTab == 0) {
-                        if (favRoutes.isEmpty()) {
+                        var draggedId by remember { mutableStateOf<String?>(null) }
+                        var dragOffset by remember { mutableStateOf(0f) }
+                        val localFavList = remember { mutableStateListOf<RouteInfo>() }
+
+                        LaunchedEffect(favRoutes) {
+                            if (draggedId == null) {
+                                localFavList.clear()
+                                localFavList.addAll(favRoutes)
+                            }
+                        }
+
+                        if (localFavList.isEmpty()) {
                             Box(
                                 modifier = Modifier.weight(1f).fillMaxWidth(),
                                 contentAlignment = Alignment.Center
@@ -385,24 +402,83 @@ fun NavigationSimulationScreen(
                                 Text(stringResource(R.string.history_idle), color = Color.Gray)
                             }
                         } else {
-                            LazyColumn(
-                                modifier = Modifier.weight(1f),
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                            val scrollState = rememberScrollState()
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .verticalScroll(scrollState)
+                                    .pointerInput(Unit) {
+                                        val cardHeightPx = 80.dp.toPx()
+                                        val gapPx = 8.dp.toPx()
+                                        val itemUnitPx = cardHeightPx + gapPx
+
+                                        detectDragGesturesAfterLongPress(
+                                            onDragStart = { offset ->
+                                                val contentY = offset.y + scrollState.value
+                                                val idx = (contentY / itemUnitPx).toInt().coerceIn(0, localFavList.lastIndex)
+                                                localFavList.clear()
+                                                localFavList.addAll(favRoutes)
+                                                draggedId = localFavList.getOrNull(idx)?.id
+                                                dragOffset = 0f
+                                            },
+                                            onDrag = { change, dragAmount ->
+                                                change.consume()
+                                                if (draggedId == null) return@detectDragGesturesAfterLongPress
+                                                dragOffset += dragAmount.y
+                                                val curIdx = localFavList.indexOfFirst { it.id == draggedId }
+                                                if (curIdx < 0) return@detectDragGesturesAfterLongPress
+                                                val thresholdPx = cardHeightPx * 0.92f
+                                                if (abs(dragOffset) >= thresholdPx) {
+                                                    val dir = if (dragOffset > 0) 1 else -1
+                                                    val targetIdx = (curIdx + dir).coerceIn(0, localFavList.lastIndex)
+                                                    if (targetIdx != curIdx) {
+                                                        val temp = localFavList[curIdx]
+                                                        localFavList[curIdx] = localFavList[targetIdx]
+                                                        localFavList[targetIdx] = temp
+                                                    }
+                                                    dragOffset -= dir * thresholdPx
+                                                }
+                                            },
+                                            onDragEnd = {
+                                                if (draggedId != null) {
+                                                    viewModel.setFavoriteOrder(localFavList.mapNotNull { it.id.toLongOrNull() })
+                                                }
+                                                draggedId = null
+                                                dragOffset = 0f
+                                            },
+                                            onDragCancel = {
+                                                draggedId = null
+                                                dragOffset = 0f
+                                            }
+                                        )
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
                             ) {
-                                items(favRoutes, key = { "fav_${it.id}" }) { route ->
-                                    NavigationHistoryCard(
-                                        route = route,
-                                        isFav = true,
-                                        showMoveButtons = true,
-                                        onSelect = { viewModel.selectHistoryRoute(route) },
-                                        onToggleFavorite = {
-                                            route.id.toLongOrNull()?.let { viewModel.toggleFavorite(it) }
-                                        },
-                                        onRename = { renameTarget = route; renameText = route.startName },
-                                        onDelete = { route.id.toLongOrNull()?.let { viewModel.deleteHistory(it) } },
-                                        onMoveUp = { route.id.toLongOrNull()?.let { viewModel.moveFavoriteUp(it) } },
-                                        onMoveDown = { route.id.toLongOrNull()?.let { viewModel.moveFavoriteDown(it) } }
-                                    )
+                                localFavList.forEachIndexed { _, route ->
+                                    val isDragged = draggedId == route.id
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .zIndex(if (isDragged) 1f else 0f)
+                                            .graphicsLayer {
+                                                translationY = if (isDragged) dragOffset else 0f
+                                                shadowElevation = if (isDragged) 16f else 0f
+                                            }
+                                    ) {
+                                        NavigationHistoryCard(
+                                            route = route,
+                                            isFav = true,
+                                            showMoveButtons = false,
+                                            onSelect = { viewModel.selectHistoryRoute(route) },
+                                            onToggleFavorite = {
+                                                route.id.toLongOrNull()?.let { viewModel.toggleFavorite(it) }
+                                            },
+                                            onRename = { renameTarget = route; renameText = route.startName },
+                                            onDelete = { route.id.toLongOrNull()?.let { viewModel.deleteHistory(it) } }
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
                                 }
                             }
                         }
@@ -535,7 +611,7 @@ fun NavigationHistoryCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
+            .padding(vertical = 10.dp)
             .clickable { onSelect() },
         shape = RoundedCornerShape(8.dp)
     ) {

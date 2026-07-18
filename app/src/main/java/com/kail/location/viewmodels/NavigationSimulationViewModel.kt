@@ -453,6 +453,12 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
         _favOrders.value = newMap
     }
 
+    fun setFavoriteOrder(ids: List<Long>) {
+        val map = mutableMapOf<Long, Int>()
+        ids.forEachIndexed { index, id -> map[id] = index }
+        _favOrders.value = map
+    }
+
     fun clearHistory() {
         viewModelScope.launch {
             historyRepository.clearHistory()

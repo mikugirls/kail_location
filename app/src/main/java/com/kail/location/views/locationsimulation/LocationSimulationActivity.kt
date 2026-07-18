@@ -104,6 +104,7 @@ class LocationSimulationActivity : BaseActivity() {
                     onJoystickToggle = viewModel::setJoystickEnabled,
                     onMoveFavUp = { id -> viewModel.moveFavorite(id, up = true) },
                     onMoveFavDown = { id -> viewModel.moveFavorite(id, up = false) },
+                    onSetFavoriteOrder = { ids -> viewModel.setFavoriteOrder(ids) },
                     onStepSimulationToggle = viewModel::setStepSimulationEnabled,
                     onStepCadenceChange = viewModel::setStepCadenceSpm,
                     onRecordSelect = viewModel::selectRecord,

@@ -523,6 +523,19 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
         }
     }
 
+    fun setFavoriteOrder(ids: List<Int>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                db?.let { db ->
+                    ids.forEachIndexed { index, id ->
+                        DataBaseHistoryLocation.updateFavoriteOrder(db, id, index)
+                    }
+                }
+                loadRecords()
+            } catch (_: Exception) {}
+        }
+    }
+
     fun toggleFavorite(id: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             try {

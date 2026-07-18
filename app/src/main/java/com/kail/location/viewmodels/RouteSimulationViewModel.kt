@@ -1016,6 +1016,25 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
         }
     }
 
+    fun setFavoriteOrder(ids: List<String>) {
+        viewModelScope.launch {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
+            val res = prefs.getString("saved_routes", "[]") ?: "[]"
+            val arr = JSONArray(res)
+            ids.forEachIndexed { index, id ->
+                for (i in 0 until arr.length()) {
+                    val obj = arr.optJSONObject(i) ?: continue
+                    if (obj.optLong("time", 0L).toString() == id) {
+                        obj.put("favoriteOrder", index + 1)
+                        break
+                    }
+                }
+            }
+            prefs.edit().putString("saved_routes", arr.toString()).apply()
+            _historyRoutes.value = parseRoutes(arr.toString())
+        }
+    }
+
     fun deleteRoute(id: String) {
         viewModelScope.launch {
             val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())

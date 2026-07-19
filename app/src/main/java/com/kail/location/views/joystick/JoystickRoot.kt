@@ -81,7 +81,8 @@ fun JoystickRoot(
                 isPinned = isPinned,
                 onTogglePin = { viewModel.toggleHistoryPin() },
                 onMoveFavUp = { id -> viewModel.moveFavorite(id, up = true) },
-                onMoveFavDown = { id -> viewModel.moveFavorite(id, up = false) }
+                onMoveFavDown = { id -> viewModel.moveFavorite(id, up = false) },
+                onSetFavoriteOrder = { ids -> viewModel.setFavoriteOrder(ids) }
             )
         }
         JoystickViewModel.WindowType.ROUTE_CONTROL -> {

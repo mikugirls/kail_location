@@ -277,6 +277,22 @@ class JoystickViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun setFavoriteOrder(ids: List<String>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val dbHelper = DataBaseHistoryLocation(getApplication())
+                val db = dbHelper.writableDatabase
+                ids.forEachIndexed { index, id ->
+                    DataBaseHistoryLocation.updateFavoriteOrder(db, id.toIntOrNull() ?: return@launch, index)
+                }
+                db.close()
+                DataBaseHistoryLocation.notifyChanged()
+            } catch (e: Exception) {
+                KailLog.e(getApplication(), "JOYSTICK", "Error setting favorite order: ${e.message}")
+            }
+        }
+    }
+
     fun toggleHistoryPin() {
         _isHistoryPinned.value = !_isHistoryPinned.value
     }

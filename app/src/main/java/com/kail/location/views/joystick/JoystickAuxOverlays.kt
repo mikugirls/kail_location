@@ -6,11 +6,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
+import kotlin.math.abs
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -82,7 +88,8 @@ fun JoyStickHistoryOverlay(
     isPinned: Boolean = false,
     onTogglePin: () -> Unit = {},
     onMoveFavUp: (String) -> Unit = {},
-    onMoveFavDown: (String) -> Unit = {}
+    onMoveFavDown: (String) -> Unit = {},
+    onSetFavoriteOrder: (List<String>) -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var renameTarget by remember { mutableStateOf<String?>(null) }
@@ -190,16 +197,94 @@ fun JoyStickHistoryOverlay(
             }
 
             if (selectedTab == 0) {
-                // Favorites tab
-                if (favRecords.isEmpty()) {
+                var draggedId by remember { mutableStateOf<String?>(null) }
+                var dragOffset by remember { mutableStateOf(0f) }
+                val localFavList = remember { mutableStateListOf<Map<String, Any>>() }
+
+                LaunchedEffect(favRecords) {
+                    if (draggedId == null) {
+                        localFavList.clear()
+                        localFavList.addAll(favRecords)
+                    }
+                }
+
+                if (localFavList.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(stringResource(R.string.history_idle), color = Color.Gray)
                     }
                 } else {
-                    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 4.dp)) {
-                        items(favRecords, key = { "fav_${it[HistoryActivity.KEY_ID]}" }) { record ->
-                            val rid = (record[HistoryActivity.KEY_ID] as? String) ?: ""
-                            historyListItem(record = record, isFav = true, showMoveButtons = true, onSelectRecord = onSelectRecord, onToggleFavorite = onToggleFavorite, onRename = { id -> renameTarget = id; renameText = (record[HistoryActivity.KEY_LOCATION] as? String) ?: "" }, onDelete = onDelete, onMoveUp = { onMoveFavUp(rid) }, onMoveDown = { onMoveFavDown(rid) })
+                    val scrollState = rememberScrollState()
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(scrollState)
+                            .pointerInput(Unit) {
+                                val cardHeightPx = 56.dp.toPx()
+                                val gapPx = 4.dp.toPx()
+                                val itemUnitPx = cardHeightPx + gapPx
+
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = { offset ->
+                                        val contentY = offset.y + scrollState.value
+                                        val idx = (contentY / itemUnitPx).toInt().coerceIn(0, localFavList.lastIndex)
+                                        localFavList.clear()
+                                        localFavList.addAll(favRecords)
+                                        draggedId = localFavList.getOrNull(idx)?.let { it[HistoryActivity.KEY_ID] as? String }
+                                        dragOffset = 0f
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        if (draggedId == null) return@detectDragGesturesAfterLongPress
+                                        dragOffset += dragAmount.y
+                                        val curIdx = localFavList.indexOfFirst { (it[HistoryActivity.KEY_ID] as? String) == draggedId }
+                                        if (curIdx < 0) return@detectDragGesturesAfterLongPress
+                                        val thresholdPx = cardHeightPx * 0.92f
+                                        if (abs(dragOffset) >= thresholdPx) {
+                                            val dir = if (dragOffset > 0) 1 else -1
+                                            val targetIdx = (curIdx + dir).coerceIn(0, localFavList.lastIndex)
+                                            if (targetIdx != curIdx) {
+                                                val temp = localFavList[curIdx]
+                                                localFavList[curIdx] = localFavList[targetIdx]
+                                                localFavList[targetIdx] = temp
+                                            }
+                                            dragOffset -= dir * thresholdPx
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        if (draggedId != null) {
+                                            onSetFavoriteOrder(localFavList.mapNotNull { it[HistoryActivity.KEY_ID] as? String })
+                                        }
+                                        draggedId = null
+                                        dragOffset = 0f
+                                    },
+                                    onDragCancel = {
+                                        draggedId = null
+                                        dragOffset = 0f
+                                    }
+                                )
+                            }
+                    ) {
+                        localFavList.forEachIndexed { _, record ->
+                            val isDragged = draggedId == (record[HistoryActivity.KEY_ID] as? String)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .zIndex(if (isDragged) 1f else 0f)
+                                    .graphicsLayer {
+                                        translationY = if (isDragged) dragOffset else 0f
+                                        shadowElevation = if (isDragged) 16f else 0f
+                                    }
+                            ) {
+                                historyListItem(
+                                    record = record,
+                                    isFav = true,
+                                    showMoveButtons = false,
+                                    onSelectRecord = onSelectRecord,
+                                    onToggleFavorite = onToggleFavorite,
+                                    onRename = { id -> renameTarget = id; renameText = (record[HistoryActivity.KEY_LOCATION] as? String) ?: "" },
+                                    onDelete = onDelete
+                                )
+                            }
                             HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = Color.LightGray.copy(alpha = 0.5f))
                         }
                     }

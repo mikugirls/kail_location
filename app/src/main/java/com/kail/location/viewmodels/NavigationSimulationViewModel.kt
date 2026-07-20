@@ -46,6 +46,8 @@ import kotlinx.coroutines.delay
 
 import com.kail.location.data.local.AppDatabase
 import com.kail.location.repositories.HistoryRepository
+import org.json.JSONArray
+import org.json.JSONObject
 
 class NavigationSimulationViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -145,6 +147,7 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
     }
 
     init {
+        loadFavOrders()
         viewModelScope.launch {
             historyRepository.recentRoutes.collect { entities ->
                 _historyList.value = entities.map { entity ->
@@ -457,6 +460,33 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
         val map = mutableMapOf<Long, Int>()
         ids.forEachIndexed { index, id -> map[id] = index }
         _favOrders.value = map
+        saveFavOrders()
+    }
+
+    private fun loadFavOrders() {
+        val json = sharedPreferences.getString("nav_fav_orders", null) ?: return
+        try {
+            val map = mutableMapOf<Long, Int>()
+            val arr = JSONArray(json)
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                map[obj.getLong("id")] = obj.getInt("order")
+            }
+            _favOrders.value = map
+        } catch (_: Exception) {}
+    }
+
+    private fun saveFavOrders() {
+        try {
+            val arr = JSONArray()
+            _favOrders.value.forEach { (id, order) ->
+                arr.put(JSONObject().apply {
+                    put("id", id)
+                    put("order", order)
+                })
+            }
+            sharedPreferences.edit().putString("nav_fav_orders", arr.toString()).apply()
+        } catch (_: Exception) {}
     }
 
     fun clearHistory() {

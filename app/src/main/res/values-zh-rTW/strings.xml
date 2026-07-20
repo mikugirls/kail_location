@@ -303,6 +303,7 @@
     <string name="common_delete">刪除</string>
     <string name="common_cancel">取消</string>
     <string name="common_ok">確定</string>
+    <string name="delete_dont_remind_10min">10分鐘內不再提醒</string>
 
     <string name="drawer_env_check">環境檢查</string>
     <string name="drawer_ok">確定</string>

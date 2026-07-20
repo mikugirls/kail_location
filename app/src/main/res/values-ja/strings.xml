@@ -301,6 +301,7 @@
     <string name="common_delete">削除</string>
     <string name="common_cancel">キャンセル</string>
     <string name="common_ok">OK</string>
+    <string name="delete_dont_remind_10min">10分間は再通知しない</string>
 
     <string name="drawer_env_check">環境チェック</string>
     <string name="drawer_ok">OK</string>

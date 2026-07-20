@@ -330,6 +330,7 @@
     <string name="common_delete">Delete</string>
     <string name="common_cancel">Cancel</string>
     <string name="common_ok">OK</string>
+    <string name="delete_dont_remind_10min">Don\'t remind me for 10 minutes</string>
 
     <!-- Drawer -->
     <string name="drawer_env_check">Environment Check</string>

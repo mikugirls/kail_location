@@ -732,10 +732,7 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
         viewModelScope.launch {
             val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
             val res = prefs.getString("saved_routes", "[]") ?: "[]"
-            val arr = JSONArray(res)
-            normalizeFavoriteOrders(arr)
-            prefs.edit().putString("saved_routes", arr.toString()).apply()
-            val list = parseRoutes(arr.toString())
+            val list = parseRoutes(res)
             _historyRoutes.value = list
             enrichRouteNamesIfNeeded()
         }
@@ -770,7 +767,7 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
             }
             list.sortByDescending { it.first }
             val routes = list.map { it.second }
-            routes.sortedByDescending { it.isFavorite }
+            routes.sortedWith(compareByDescending<RouteInfo> { it.isFavorite }.thenBy { it.favoriteOrder })
         } catch (e: Exception) {
             KailLog.w(getApplication(), TAG, "parseRoutes: parse saved routes failed: ${e.message}")
             emptyList()

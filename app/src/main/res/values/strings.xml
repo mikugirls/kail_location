@@ -497,6 +497,7 @@
     <string name="common_edit">编辑</string>
     <string name="common_delete">删除</string>
     <string name="common_cancel">取消</string>
+    <string name="delete_dont_remind_10min">10分钟内不再提醒</string>
     <string name="common_ok">确定</string>
 
     <!-- Drawer -->
